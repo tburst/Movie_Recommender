@@ -1,0 +1,1 @@
+Takes as input a Sqlite Database and a Csv-File, both containing personal ratings for movies merged with imdb data. Uses this data as a training-dataset to build a random forest model and returns for every new movie (asked via inserted imdb-link) a calculated rating.
