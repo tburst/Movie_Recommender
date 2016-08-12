@@ -174,4 +174,50 @@ def check_OscarWinnerFemale(cast):
     except KeyError:
         return False
         
-        
+
+#Reading Labled Movie Data in Panda Dataframe
+#Features with single actors or directors are based on their count. 
+#E.g. every actor who played in ten or more movies in the training data got an own variable 
+
+train_data = pd.read_csv('CurrentMovieData.csv', header = 0, encoding = "ISO-8859-1")
+train_data = train_data.dropna()
+predictors = train_data[[   "Release","imdbRating","Runtime",
+                    "Rater","Genre_Drama","Genre_Comedy",
+                    "Genre_Thriller","Genre_Action","Genre_Romance",
+                    "Genre_Crime","Genre_Adventure","Genre_Biography",
+                    "Genre_Mystery","Genre_Sci-Fi","Genre_Fantasy",
+                    "Genre_Horror","Genre_History","Genre_Music",
+                    "Genre_War","Genre_Sport","Genre_Family",
+                    "Genre_Musical","Genre_Documentary","Genre_Western",
+                    "Genre_Animation","Genre_Adult","Country_USA",
+                    "Country_UK", "Country_France","Country_Germany",
+                    "Country_Canada", "Country_Spain", "Country_Belgium",
+                    "Country_Australia","Country_Italy","Country_China",
+                    "Country_Sweden","Country_Denmark","Country_Japan",
+                    "Country_Austria","Country_Switzerland","Country_South Africa",
+                    "Country_Ireland", "Country_Netherlands","Country_Hong Kong",
+                    "Director_Clint Eastwood", "Director_Ridley Scott","Director_Steven Spielberg",
+                    "Director_Steven Soderbergh", "Director_Lasse Hallström","Director_Oliver Stone",
+                    "Director_Peter Jackson","Writer_Luc Besson","Writer_Akiva Goldsman",
+                    "Writer_Fran Walsh","Writer_Brian Helgeland","Writer_Ethan Coen",
+                    "Writer_Woody Allen","Star_Morgan Freeman", "Star_Samuel L. Jackson",
+                    "Star_Matt Damon","Star_Robert De Niro","Star_Stellan Skarsgard",
+                    "Star_Mark Strong", "Star_Ben Kingsley", "Star_Bruce Willis",
+                    "Star_Russell Crowe", "Star_Tom Hanks","Star_Cate Blanchett",
+                    "Star_J.K. Simmons","Star_James Franco","Star_Liam Neeson",
+                    "Star_Nicole Kidman","Star_Scarlett Johansson","Star_Sigourney Weaver",
+                    "Star_Angelina Jolie","Star_Colin Firth","Star_Ewan McGregor",
+                    "Star_Jason Statham","Star_Jude Law","Star_Keira Knightley",
+                    "Star_Leonardo DiCaprio", "Star_Mark Wahlberg","Star_Patricia Clarkson",
+                    "Star_Woody Harrelson","Star_Brad Pitt","Star_Channing Tatum",
+                    "Star_David Thewlis", "Star_Ed Harris","Star_Michael Caine",
+                    "Star_Nicolas Cage", "Star_Stanley Tucci","OscarWinnerMale_Since1980",
+                    "OscarWinnerFemale_Since1980", "Similar_Movie_Average"]]
+targets = train_data["OwnRating"].values
+predictors.shape
+targets.shape
+
+#Training a Random Forest Model
+
+forest = RandomForestRegressor(n_estimators = 4000)
+forest = forest.fit(predictors,targets )        
