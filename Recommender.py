@@ -180,6 +180,73 @@ def check_OscarWinnerFemale(cast):
     except KeyError:
         return False
         
+        
+#Functions to Update Movie-SQL-Database. Takes link to filmempfehlung.com profil, 
+#scrapes movie data for every new movie and automatically stops if a movie is already stored in the database
+        
+#Takes desired page of movie site(default start is  page 1) and returns personal rating, imdb link and filmempfehlungs-id as dict
+
+def get_ownMovieList(page_site=1,profil_id):
+    service_url = "http://www.filmempfehlung.com/"
+    page_site = str(page_site)
+    link = service_url + "profil,"+profil_id+"_bewertungen~" + page_site + ".html"
+    html = urllib.request.urlopen(link).read()
+    soup = BeautifulSoup(html,'html.parser', "lxml")
+    movie_dict = {}
+    for movie in  soup.find_all("div",{"class": "float_left tc bewcov"}):
+        rating = movie.find("div", {"class": "tc mt10 mb0"}).text
+        rating = re.sub("%","",rating)
+        rating = int(rating)
+        movie_tags = movie.find("a")
+        link = movie_tags["href"]
+        link = service_url + link
+        own_id = re.findall('filme,(\d+)\.',link)
+        own_id = int(own_id[0])
+        movie_dict[own_id] = {}
+        movie_dict[own_id]["Rating"] = rating
+        movie_dict[own_id]["Link"] = link
+    return movie_dict
+    
+
+#Takes Filmempfehlungs_MovieLink and returns imdb link
+
+def get_imdbLink(link):
+    html = urllib.request.urlopen(link).read()
+    soup = BeautifulSoup(html,'html.parser')
+    imdb = soup.find("a",{"class" : "imdb"})
+    imdb_link = imdb["href"]
+    return imdb_link
+
+
+#Takes id of filmempfehlung profil site and returns last page number     
+
+def get_highestPage(profil_id):
+    link = "http://www.filmempfehlung.com/profil," + profil_id + "_bewertungen~1.html"
+    html = urllib.request.urlopen(link).read()
+    soup = BeautifulSoup(html,'html.parser')
+    tag = soup.find("div", {"class" : "seitennavi"})
+    tag = tag.findAll("a", {"class" : "seiten1"})
+    pages = []
+    for i in tag:
+        if i.text.isdigit():
+            pages.append(int(i.text))
+    pages = sorted(pages, reverse = True)
+    return pages[0]  
+    
+
+#Takes id of filmempfehlung profil site and returns profil name
+   
+def get_profilName(profil_id):
+    profil_id = str(profil_id)
+    link = "http://www.filmempfehlung.com/profil," + profil_id + "_bewertungen~1.html"
+    html = urllib.request.urlopen(link).read()
+    soup = BeautifulSoup(html,'html.parser')
+    tag = soup.find("div", {"class": "userbild"})
+    tag = tag.find("a")
+    profil_name = tag["title"]
+    return profil_name
+    
+        
 
 #Reading Labled Movie Data in Panda Dataframe
 #Features with single actors or directors are based on their count. 
@@ -231,6 +298,8 @@ forest = forest.fit(predictors,targets )
 
 
 #Starting loop to insert imdb links and return calculated rating
+
+profil_id = input("Insert your filmempfehlungs-id(Numbers in the link to your profil): ")
 
 while True:
     #ask for imdb link. Quit loop if user writes break
