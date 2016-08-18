@@ -179,7 +179,31 @@ def check_OscarWinnerFemale(cast):
         return False
     except KeyError:
         return False
-        
+
+#Defining a function to calcualte an average rating of similar movies and two functions to check for specific genre and country in movie data
+
+def get_similarRating(movie_dict, imdb_id):
+    try:
+        similars = movie_dict[imdb_id]["SimilarMovie"]
+    except KeyError:
+        return ""
+    ratings = []
+    for movies in similars:
+        try:
+            ratings.append(movie_dict[movies]["Personal_Rating"])
+        except KeyError:
+            continue
+    return numpy.mean(ratings)
+
+
+def check_Genre(film_dict,genre):
+    return genre in film_dict["Genre"]
+    
+
+def check_Country(film_dict,country):
+    return country in film_dict["Country"]  
+    
+    
         
 #Functions to Update Movie-SQL-Database. Takes link to filmempfehlung.com profil, 
 #scrapes movie data for every new movie and automatically stops if a movie is already stored in the database
@@ -246,8 +270,9 @@ def get_profilName(profil_id):
     profil_name = tag["title"]
     return profil_name
     
-        
-
+    
+    
+    
 #Reading Labled Movie Data in Panda Dataframe
 #Features with single actors or directors are based on their count. 
 #E.g. every actor who played in ten or more movies in the training data got an own variable 
