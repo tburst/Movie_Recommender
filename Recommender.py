@@ -180,7 +180,8 @@ def check_OscarWinnerFemale(cast):
     except KeyError:
         return False
 
-#Defining a function to calcualte an average rating of similar movies and two functions to check for specific genre and country in movie data
+#Defining a function to calcualte an average rating of similar movies and two functions 
+#to check for specific genre and country in movie data
 
 def get_similarRating(movie_dict, imdb_id):
     try:
@@ -208,7 +209,8 @@ def check_Country(film_dict,country):
 #Functions to Update Movie-SQL-Database. Takes link to filmempfehlung.com profil, 
 #scrapes movie data for every new movie and automatically stops if a movie is already stored in the database
         
-#Takes desired page of movie site(default start is  page 1) and returns personal rating, imdb link and filmempfehlungs-id as dict
+#Takes desired page of movie site(default start is  page 1) and returns personal
+#rating, imdb link and filmempfehlungs-id as dict
 
 def get_ownMovieList(page_site=1,profil_id):
     service_url = "http://www.filmempfehlung.com/"
@@ -270,6 +272,182 @@ def get_profilName(profil_id):
     profil_name = tag["title"]
     return profil_name
     
+
+#Function to work with SQLite Database. 
+#Opens Movie-database and updates data with new movies in filmempfehlungs profil
+#Creates Tables if they dont already exist
+
+def filmempfToSQL():
+    profil_id = input("Insert your filmempfehlungs.com id(Numbers in the link to your profil): ")
+    last_page = get_highestPage(profil_id)
+    profilName = get_profilName(profil_id)
+    conn = sqlite3.connect('Movie_Database.db')
+    #Create Tables if not already in database
+    conn.execute(''' CREATE TABLE IF NOT EXISTS Movie_Country (imdbID NUMERIC,
+                                                               Country_imdb VARCHAR(30),
+                                                               PRIMARY KEY (imdbID, Country_imdb))  ''')
+    conn.execute(''' CREATE TABLE IF NOT EXISTS Movie_Director (imdbID NUMERIC,
+                                                                Director_imdb VARCHAR(30),
+                                                        		  PRIMARY KEY (imdbID, Director_imdb))''')
+    conn.execute(''' CREATE TABLE IF NOT EXISTS Movie_Genre (imdbID NUMERIC,
+                                                             Genre_imdb VARCHAR(30),
+                                                             PRIMARY KEY (imdbID, Genre_imdb))''')
+    conn.execute(''' CREATE TABLE IF NOT EXISTS Movie_Similar(imdbID NUMERIC,
+                                                              SimilarMovieID_imdb NUMERIC,
+                                                              PRIMARY KEY (imdbID, SimilarMovieID_imdb ))''')
+    conn.execute(''' CREATE TABLE IF NOT EXISTS Movie_Star(imdbID NUMERIC,
+                                                           Star_imdb VARCHAR(30),
+                                                           PRIMARY KEY (imdbID, Star_imdb))''')
+    conn.execute(''' CREATE TABLE IF NOT EXISTS Movie_Writer(imdbID NUMERIC,
+                                                             Writer_imdb VARCHAR(30),
+                                                             PRIMARY KEY (imdbID, Writer_imdb))''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS Movie_imdbData(imdbID NUMERIC PRIMARY KEY,
+                                                              Title_imdb VARCHAR(30),
+                                                              Rater_imdb NUMERIC,
+                                                              Release_imdb NUMERIC,
+                                                              Runtime_imdb NUMERIC,
+                                                              Rating_imdb Numeric)''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS Own_Rating (imdbID NUMERIC,
+                                                           Personal_Rating NUMERIC,
+                                                           Rater VARCHAR(30), 
+                                                           FilmempfehlungID NUMERIC,
+                                                           PRIMARY KEY (imdbID, Rater  ))''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS Potential_Movies(imdbID NUMERIC PRIMARY KEY,
+                                                                Title_imdb VARCHAR(30),
+                                                                Calculated_Rating NUMERIC)''')
+    #Get all movies already saved in database
+    cursor = conn.execute(''' SELECT  imdbID FROM Own_Rating WHERE Rater = ? ''',(profilName,))
+    rated_movies = []
+    for row in cursor:
+        rated_movies.append(row[0])
+    #Loop over all profil pages to store movies in database
+    for i in range(1, last_page + 1):
+        print("Filmempfehlung.com Profil Page:",i)
+        personal_movie_dict = get_ownMovieList(i,profil_id)
+        for movie in personal_movie_dict.keys():
+            print("FilmempfehlungsID:", movie)
+            personal_rating = personal_movie_dict[movie]["Rating"]
+            imdb_link = personal_movie_dict[movie]["Link"]
+            imdb_link = get_imdbLink(imdb_link)
+            if not imdb_link:
+                print("No imdb Link for Movie with id:", movie)
+                continue
+            html = urllib.request.urlopen(imdb_link).read()
+            soup = BeautifulSoup(html,"lxml")
+            if is_series(soup):
+                print("---skip Series!!!")
+                continue
+            imdb_id = re.findall("title/tt(.+)", imdb_link)
+            imdb_id = int(imdb_id[0])
+            #Exit loop if current movie already in database
+            if imdb_id in rated_movies:
+                print("Movie with id",movie, "already in database!")
+                break
+            rater = profilName
+            #Insert data for scraped movie in SQL-Database
+            conn.execute('''INSERT OR REPLACE INTO Own_Rating (imdbID, 
+                                                              Personal_Rating,
+                                                              Rater,
+                                                              FilmempfehlungID
+                                                              )
+                                                              VALUES (?,?,?,?)''',           
+                                                             (imdb_id,
+                                                              personal_rating,
+                                                              rater,
+                                                              movie
+                                                              )
+                        )
+            imdb_rating = get_rating(soup)
+            title = get_title(soup)
+            print(title)
+            imdb_rater_count = get_rater(soup)
+            release_year = get_year(soup)
+            runtime = get_runtime(soup)
+            conn.execute('''INSERT OR REPLACE INTO Movie_imdbData (imdbID, 
+                                                                  Title_imdb, 
+                                                                  Rater_imdb, 
+                                                                  Release_imdb, 
+                                                                  Runtime_imdb, 
+                                                                  Rating_imdb
+                                                                  )
+                                                                  VALUES (?,?,?,?,?,?)''',           
+                                                                 (imdb_id, 
+                                                                  title, 
+                                                                  imdb_rater_count, 
+                                                                  release_year, 
+                                                                  runtime, 
+                                                                  imdb_rating
+                                                                  )
+                        )
+            genres = get_genres(soup)
+            for genre in genres:
+                conn.execute('''INSERT OR IGNORE INTO Movie_Genre   (imdbID, 
+                                                                     Genre_imdb 
+                                                                     )
+                                                                     VALUES (?,?)''',           
+                                                                     (imdb_id,
+                                                                      genre
+                                                                      )
+                            )
+            writer = get_writer(soup)
+            for write in writer:
+                conn.execute('''INSERT OR IGNORE INTO Movie_Writer (imdbID, 
+                                                                    Writer_imdb 
+                                                                    )
+                                                                    VALUES (?,?)''',           
+                                                                    (imdb_id,
+                                                                     write
+                                                                     )
+                            )
+            director = get_director(soup)
+            for direct in director:
+                conn.execute('''INSERT OR IGNORE INTO Movie_Director(imdbID, 
+                                                                     Director_imdb 
+                                                                     )
+                                                                     VALUES (?,?)''',           
+                                                                     (imdb_id,
+                                                                      direct
+                                                                      )
+                            )
+            country = get_country(soup)
+            for count in country:
+                conn.execute('''INSERT OR IGNORE INTO Movie_Country(imdbID, 
+                                                                    Country_imdb 
+                                                                    )
+                                                                    VALUES (?,?)''',           
+                                                                     (imdb_id,
+                                                                      count
+                                                                      )
+                            )
+            similar = get_similar(soup)
+            for sim in similar:
+                conn.execute('''INSERT OR REPLACE INTO Movie_Similar(imdbID, 
+                                                                    SimilarMovieID_imdb 
+                                                                    )
+                                                                    VALUES (?,?)''',           
+                                                                     (imdb_id,
+                                                                      sim
+                                                                      )
+                            )
+            cast = get_cast(soup)
+            for star in cast:
+                conn.execute('''INSERT OR IGNORE INTO Movie_Star(imdbID, 
+                                                                    Star_imdb 
+                                                                    )
+                                                                    VALUES (?,?)''',           
+                                                                     (imdb_id,
+                                                                      star
+                                                                      )
+                            )
+            conn.commit()
+            time.sleep(5)
+        #Exit loop if current movie already in database
+        if imdb_id in rated_movies:
+            print("Database Update Done!")
+            break 
+
+
+
     
     
     
