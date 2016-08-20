@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import time
 import re
 import datetime
 import pandas as pd
@@ -211,7 +212,7 @@ def check_Country(film_dict,country):
 #Takes desired page of movie site(default start is  page 1) and returns personal
 #rating, imdb link and filmempfehlungs-id as dict
 
-def get_ownMovieList(page_site=1,profil_id):
+def get_ownMovieList(profil_id,page_site=1):
     service_url = "http://www.filmempfehlung.com/"
     page_site = str(page_site)
     link = service_url + "profil,"+profil_id+"_bewertungen~" + page_site + ".html"
@@ -277,7 +278,6 @@ def get_profilName(profil_id):
 #Creates Tables if they dont already exist
 
 def filmempfToSQL(profil_id):
-    profil_id = input("Insert your filmempfehlungs.com id(Numbers in the link to your profil): ")
     last_page = get_highestPage(profil_id)
     profilName = get_profilName(profil_id)
     conn = sqlite3.connect('Movie_Database.db')
@@ -322,7 +322,7 @@ def filmempfToSQL(profil_id):
     #Loop over all profil pages to store movies in database
     for i in range(1, last_page + 1):
         print("Filmempfehlung.com Profil Page:",i)
-        personal_movie_dict = get_ownMovieList(i,profil_id)
+        personal_movie_dict = get_ownMovieList(profil_id,i)
         for movie in personal_movie_dict.keys():
             print("FilmempfehlungsID:", movie)
             personal_rating = personal_movie_dict[movie]["Rating"]
@@ -447,10 +447,12 @@ def filmempfToSQL(profil_id):
 
 
 
-#Second main function
+#Second main function. Creates a dictionary with all SQL data stored for a specific user.
+#The dictionary can than be used to create a csv file to train a random forest model
 
 
 def SQLToMovieDict(profil_id):
+    profil_id = str(profil_id)
     profilName = get_profilName(profil_id)
     conn = sqlite3.connect('Movie_Database.db')
     #Build Imdb Dict from SQL data
@@ -469,7 +471,7 @@ def SQLToMovieDict(profil_id):
         movie_dict[row[0]]["Runtime"] = row[4]
         movie_dict[row[0]]["imdb_Rating"] = row[5]
     #Country List
-    cursor = conn.execute(''' SELECT  imdbID, Country_imdb 
+    cursor = conn.execute(''' SELECT  Movie_Country.imdbID, Country_imdb 
                               FROM Movie_Country
                               LEFT JOIN Own_Rating
                               ON Movie_Country.imdbID = Own_Rating.imdbID
@@ -477,7 +479,7 @@ def SQLToMovieDict(profil_id):
     for row in cursor: 
         movie_dict[row[0]]["Country"] = movie_dict[row[0]].get("Country",[]) + [row[1]]
     #Director List
-    cursor = conn.execute(''' SELECT  imdbID, Director_imdb 
+    cursor = conn.execute(''' SELECT  Movie_Director.imdbID, Director_imdb 
                               FROM Movie_Director
                               LEFT JOIN Own_Rating
                               ON Movie_Director.imdbID = Own_Rating.imdbID
@@ -485,7 +487,7 @@ def SQLToMovieDict(profil_id):
     for row in cursor: 
         movie_dict[row[0]]["Director"] = movie_dict[row[0]].get("Director",[]) + [row[1]]
     #Genre List
-    cursor = conn.execute(''' SELECT  imdbID, Genre_imdb 
+    cursor = conn.execute(''' SELECT  Movie_Genre.imdbID, Genre_imdb 
                               FROM Movie_Genre
                               LEFT JOIN Own_Rating
                               ON Movie_Genre.imdbID = Own_Rating.imdbID
@@ -493,7 +495,7 @@ def SQLToMovieDict(profil_id):
     for row in cursor: 
         movie_dict[row[0]]["Genre"] = movie_dict[row[0]].get("Genre",[]) + [row[1]]
     #Similar List
-    cursor = conn.execute(''' SELECT  imdbID, SimilarMovieID_imdb
+    cursor = conn.execute(''' SELECT  Movie_Similar.imdbID, SimilarMovieID_imdb
                               FROM Movie_Similar
                               LEFT JOIN Own_Rating
                               ON Movie_Similar.imdbID = Own_Rating.imdbID
@@ -501,7 +503,7 @@ def SQLToMovieDict(profil_id):
     for row in cursor: 
         movie_dict[row[0]]["SimilarMovie"] = movie_dict[row[0]].get("SimilarMovie",[]) + [row[1]]
     #Star List
-    cursor = conn.execute(''' SELECT  imdbID, Star_imdb
+    cursor = conn.execute(''' SELECT  Movie_Star.imdbID, Star_imdb
                               FROM Movie_Star
                               LEFT JOIN Own_Rating
                               ON Movie_Star.imdbID = Own_Rating.imdbID
@@ -509,7 +511,7 @@ def SQLToMovieDict(profil_id):
     for row in cursor: 
         movie_dict[row[0]]["Star"] = movie_dict[row[0]].get("Star",[]) + [row[1]]
     #Writer List
-    cursor = conn.execute(''' SELECT  imdbID, Writer_imdb
+    cursor = conn.execute(''' SELECT  Movie_Writer.imdbID, Writer_imdb
                               FROM Movie_Writer
                               LEFT JOIN Own_Rating
                               ON Movie_Writer.imdbID = Own_Rating.imdbID
@@ -519,8 +521,6 @@ def SQLToMovieDict(profil_id):
     #Personal Rating
     cursor = conn.execute(''' SELECT  imdbID, Personal_Rating
                               FROM Own_Rating
-                              LEFT JOIN Own_Rating
-                              ON Own_Rating.imdbID = Own_Rating.imdbID
                               WHERE Rater = ?''', (profilName,))
     for row in cursor: 
         movie_dict[row[0]]["Personal_Rating"] = row[1]
