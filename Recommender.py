@@ -206,8 +206,7 @@ def check_Country(film_dict,country):
     
     
         
-#Functions to Update Movie-SQL-Database. Takes link to filmempfehlung.com profil, 
-#scrapes movie data for every new movie and automatically stops if a movie is already stored in the database
+#Functions to work with filmempfehlung.com data. 
         
 #Takes desired page of movie site(default start is  page 1) and returns personal
 #rating, imdb link and filmempfehlungs-id as dict
@@ -273,11 +272,11 @@ def get_profilName(profil_id):
     return profil_name
     
 
-#Function to work with SQLite Database. 
-#Opens Movie-database and updates data with new movies in filmempfehlungs profil
+#First main Function: working with SQLite Database. Asks for filmempfehlung.com profil_id,
+#scrapes movie data for every new movie and automatically stops if a movie is already stored in the database. 
 #Creates Tables if they dont already exist
 
-def filmempfToSQL():
+def filmempfToSQL(profil_id):
     profil_id = input("Insert your filmempfehlungs.com id(Numbers in the link to your profil): ")
     last_page = get_highestPage(profil_id)
     profilName = get_profilName(profil_id)
@@ -448,7 +447,88 @@ def filmempfToSQL():
 
 
 
+#Second main function
+
+
+def SQLToMovieDict(profil_id):
+    profilName = get_profilName(profil_id)
+    conn = sqlite3.connect('Movie_Database.db')
+    #Build Imdb Dict from SQL data
+    #General imdb data
+    cursor = conn.execute(''' SELECT  Movie_imdbData.imdbID, Title_imdb,Rater_imdb, Release_imdb, Runtime_imdb, Rating_imdb
+                              FROM Movie_imdbData
+                              LEFT JOIN Own_Rating
+                              ON Movie_imdbData.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    movie_dict = {}
+    for row in cursor:
+        movie_dict[row[0]] = {}
+        movie_dict[row[0]]["Title"] = row[1]
+        movie_dict[row[0]]["Rater_Count"] = row[2]
+        movie_dict[row[0]]["Release"] = row[3]
+        movie_dict[row[0]]["Runtime"] = row[4]
+        movie_dict[row[0]]["imdb_Rating"] = row[5]
+    #Country List
+    cursor = conn.execute(''' SELECT  imdbID, Country_imdb 
+                              FROM Movie_Country
+                              LEFT JOIN Own_Rating
+                              ON Movie_Country.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["Country"] = movie_dict[row[0]].get("Country",[]) + [row[1]]
+    #Director List
+    cursor = conn.execute(''' SELECT  imdbID, Director_imdb 
+                              FROM Movie_Director
+                              LEFT JOIN Own_Rating
+                              ON Movie_Director.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["Director"] = movie_dict[row[0]].get("Director",[]) + [row[1]]
+    #Genre List
+    cursor = conn.execute(''' SELECT  imdbID, Genre_imdb 
+                              FROM Movie_Genre
+                              LEFT JOIN Own_Rating
+                              ON Movie_Genre.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["Genre"] = movie_dict[row[0]].get("Genre",[]) + [row[1]]
+    #Similar List
+    cursor = conn.execute(''' SELECT  imdbID, SimilarMovieID_imdb
+                              FROM Movie_Similar
+                              LEFT JOIN Own_Rating
+                              ON Movie_Similar.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["SimilarMovie"] = movie_dict[row[0]].get("SimilarMovie",[]) + [row[1]]
+    #Star List
+    cursor = conn.execute(''' SELECT  imdbID, Star_imdb
+                              FROM Movie_Star
+                              LEFT JOIN Own_Rating
+                              ON Movie_Star.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["Star"] = movie_dict[row[0]].get("Star",[]) + [row[1]]
+    #Writer List
+    cursor = conn.execute(''' SELECT  imdbID, Writer_imdb
+                              FROM Movie_Writer
+                              LEFT JOIN Own_Rating
+                              ON Movie_Writer.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["Writer"] = movie_dict[row[0]].get("Writer",[]) + [row[1]]
+    #Personal Rating
+    cursor = conn.execute(''' SELECT  imdbID, Personal_Rating
+                              FROM Own_Rating
+                              LEFT JOIN Own_Rating
+                              ON Own_Rating.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?''', (profilName,))
+    for row in cursor: 
+        movie_dict[row[0]]["Personal_Rating"] = row[1]
+    return movie_dict
     
+
+
+
     
     
 #Reading Labled Movie Data in Panda Dataframe
