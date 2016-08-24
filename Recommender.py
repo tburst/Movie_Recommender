@@ -650,7 +650,7 @@ def MovieDictToPandas(movie_dict, profilName):
     
 #Create list with all column names of pandas trainin data
 
-def createTrainingFeatureList(movie_trainingData, profilName):
+def createTrainingFeatureList(profilName):
     relevantCountries = determineCountryVariables(profilName)
     relevantWriter = determineWriterVariables(profilName)
     relevantGenre = determineGenreVariables(profilName)
@@ -683,35 +683,40 @@ while True:
         print("Goodbye!")
         break    
     profil_id = input("Please insert your filmempfehlungs-id(Numbers in the link to your profil): ") 
-    profilName = ""
-    forest = ""
+    profilName = get_profilName(profil_id)
     if user_decision == "database":
-        if not profilName:
-            profilName = get_profilName(profil_id)
         filmempfToSQL(profil_id)
         continue
     elif user_decision == "recommend":
-        if not profilName:
-            profilName = get_profilName(profil_id)
-        if not forest:
-            print("Collecting training data...")
-            movie_dict = SQLToMovieDict(profilName)
-            movie_trainingData = MovieDictToPandas(movie_dict, profilName)
-            movie_trainingData[["Runtime","Similar_Movie_Average"]] = movie_trainingData[["Runtime","Similar_Movie_Average"]].apply(pd.to_numeric)
-            movie_trainingData = movie_trainingData.dropna()
-            trainingFeatures = createTrainingFeatureList(movie_trainingData, profilName)
-            print("There are overall",len(movie_trainingData.index),"movies with", len(movie_trainingData.columns),"features to train the algorithm")
-            predictors = movie_trainingData[trainingFeatures]
-            targets = movie_trainingData["Personal_Rating"].values
-            print("Training random forest model...")
-            forest = RandomForestRegressor(n_estimators = 3000)
-            forest = forest.fit(predictors,targets ) 
-            relevantCountries = determineCountryVariables(profilName)
-            relevantWriter = determineWriterVariables(profilName)
-            relevantGenre = determineGenreVariables(profilName)
-            relevantStars = determineStarVariables(profilName)
-            relevantDirectors = determineDirectorVariables(profilName)
-            print("Done. Now insert new movies to get a caluclated rating based on your already rated movies.")
+        print("Collecting training data...")
+        movie_dict = SQLToMovieDict(profilName)
+        movie_trainingData = MovieDictToPandas(movie_dict, profilName)
+        movie_trainingData_noSimilar = MovieDictToPandas(movie_dict, profilName)
+        movie_trainingData[["Runtime","Similar_Movie_Average"]] = movie_trainingData[["Runtime","Similar_Movie_Average"]].apply(pd.to_numeric)
+        movie_trainingData_noSimilar[["Runtime"]] = movie_trainingData_noSimilar[["Runtime"]].apply(pd.to_numeric)        
+        movie_trainingData_noSimilar.drop("Similar_Movie_Average",axis=1,inplace=True)               
+        movie_trainingData = movie_trainingData.dropna()
+        movie_trainingData_noSimilar = movie_trainingData_noSimilar.dropna()        
+        trainingFeatures = createTrainingFeatureList(profilName)
+        trainingFeatures_noSimilar = createTrainingFeatureList(profilName)
+        trainingFeatures_noSimilar.remove("Similar_Movie_Average")
+        predictors_noSimilar = movie_trainingData_noSimilar[trainingFeatures_noSimilar] 
+        targets_noSimilar = movie_trainingData_noSimilar["Personal_Rating"].values
+        print("There are overall",len(movie_trainingData.index),"movies with", len(movie_trainingData.columns),"features to train the main algorithm")
+        print("There are overall",len(movie_trainingData_noSimilar.index),"movies with", len(movie_trainingData_noSimilar.columns),"features to train the backup algorithm")        
+        predictors = movie_trainingData[trainingFeatures]
+        targets = movie_trainingData["Personal_Rating"].values
+        print("Training random forest model...")
+        forest_all = RandomForestRegressor(n_estimators = 3000)
+        forest_noSimilar = RandomForestRegressor(n_estimators = 3000)
+        forest_all = forest_all.fit(predictors,targets ) 
+        forest_noSimilar = forest_noSimilar.fit(predictors_noSimilar,targets_noSimilar ) 
+        relevantCountries = determineCountryVariables(profilName)
+        relevantWriter = determineWriterVariables(profilName)
+        relevantGenre = determineGenreVariables(profilName)
+        relevantStars = determineStarVariables(profilName)
+        relevantDirectors = determineDirectorVariables(profilName)
+        print("Done. Now insert new movies to get a caluclated rating based on your already rated movies.")
         while True:
             imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the recommendation mode:....\n  " )
             if imdb_link == "break":
@@ -778,18 +783,36 @@ while True:
                 except TypeError:
                     continue
             if not similar_ratings:
-                print("\nNot enough similar movies in your personal database. Please choose another movie")
+                print("\nNot enough similar movies in your personal database. Using weaker backup random forest model")
+                single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
+                single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
+                new_movie_data_predictors = pd.DataFrame([single_movie_dict])
+                new_movie_data_predictors = new_movie_data_predictors[trainingFeatures_noSimilar]
+                calculated_rating = forest_noSimilar.predict(new_movie_data_predictors)
+                print("You would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
+                print("Saving calculated rating in database for potential new movies.")
+                cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                  Title_imdb,
+                                                                  Calculated_Rating
+                                                                  )
+                                                                  VALUES (?,?,?)''',           
+                                                                 (single_movie_dict["id"], 
+                                                                  single_movie_dict["Title"],
+                                                                  calculated_rating[0]
+                                                                  )
+                            )
+                conn.commit()
                 continue
             similar_rating = np.mean(similar_ratings)
-            if np.isnan(similar_rating):
-                print("\nNot enough similar movies in your personal database. Please choose another movie")
-                continue
+            #if np.isnan(similar_rating):
+                #print("\nNot enough similar movies in your personal database. Using weaker random forest model")
+                #continue
             single_movie_dict["Similar_Movie_Average"] =  similar_rating
             single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
             single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
             new_movie_data_predictors = pd.DataFrame([single_movie_dict])
             new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
-            calculated_rating = forest.predict(new_movie_data_predictors)
+            calculated_rating = forest_all.predict(new_movie_data_predictors)
             print("You would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
             print("Saving calculated rating in database for potential new movies.")
             cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
