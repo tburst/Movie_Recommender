@@ -649,17 +649,36 @@ def MovieDictToPandas(movie_dict, profilName):
         
         
     
-    
-    
-    
-    
-    
-    
-    
-    
-#Reading Labled Movie Data in Panda Dataframe
+#Create list with all column names of pandas trainin data
+
+def createTrainingFeatureList(movie_trainingData, profilName):
+    relevantCountries = determineCountryVariables(profilName)
+    relevantWriter = determineWriterVariables(profilName)
+    relevantGenre = determineGenreVariables(profilName)
+    relevantStars = determineStarVariables(profilName)
+    relevantDirectors = determineDirectorVariables(profilName)
+    trainingFeatures = ["Release","imdbRating","Runtime","Rater","OscarWinnerMale_Since1980",
+                        "OscarWinnerFemale_Since1980", "Similar_Movie_Average"]
+    for country in relevantCountries:
+        trainingFeatures.append("Country_" + country)
+    for writer in relevantWriter:
+        trainingFeatures.append("Writer_" + writer)
+    for genre in relevantGenre:
+        trainingFeatures.append("Genre_" + genre)
+    for star in relevantStars:
+        trainingFeatures.append("Star_" + star)
+    for director in relevantDirectors:
+        trainingFeatures.append("Director_" + director)
+    return trainingFeatures
+
+
+
+        
+        
+ #Reading Labled Movie Data in Panda Dataframe
 #Features with single actors or directors are based on their count. 
-#E.g. every actor who played in ten or more movies in the training data got an own variable 
+#E.g. every actor who played in ten or more movies in the training data got an own variable       
+    
 
 train_data = pd.read_csv('CurrentMovieData.csv', header = 0, encoding = "ISO-8859-1")
 train_data = train_data.dropna()
