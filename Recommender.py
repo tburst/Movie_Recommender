@@ -181,8 +181,6 @@ def check_OscarWinnerFemale(cast):
     except KeyError:
         return False
 
-#Defining a function to calcualte an average rating of similar movies and two functions 
-#to check for specific genre and country in movie data
 
 def get_similarRating(movie_dict, imdb_id):
     try:
@@ -198,12 +196,90 @@ def get_similarRating(movie_dict, imdb_id):
     return numpy.mean(ratings)
 
 
-def check_Genre(film_dict,genre):
-    return genre in film_dict["Genre"]
-    
+def determineCountryVariables(profilName):
+    conn = sqlite3.connect('Movie_Database.db')
+    cursor = conn.execute( '''SELECT Country_imdb, COUNT(Country_imdb) AS Country_Count
+                              FROM Movie_Country
+                              LEFT JOIN Own_Rating
+                              ON Movie_Country.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?
+                              GROUP BY Country_imdb
+                              ORDER BY Country_Count DESC''' , (profilName,))
+    relevant_Countries = []
+    for row in cursor:
+        if row[1] < 20:
+            break
+        relevant_Countries.append(row[0])
+    return relevant_Countries
 
-def check_Country(film_dict,country):
-    return country in film_dict["Country"]  
+
+
+def determineWriterVariables(profilName):
+    conn = sqlite3.connect('Movie_Database.db')
+    cursor = conn.execute( '''SELECT Writer_imdb, COUNT(Writer_imdb) AS Writer_Count
+                              FROM Movie_Writer
+                              LEFT JOIN Own_Rating
+                              ON Movie_Writer.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?
+                              GROUP BY Writer_imdb
+                              ORDER BY Writer_Count DESC''' , (profilName,))
+    relevant_Writer = []
+    for row in cursor:
+        if row[1] < 6:
+            break
+        relevant_Writer.append(row[0])
+    return relevant_Writer
+
+
+def determineGenreVariables(profilName):
+    conn = sqlite3.connect('Movie_Database.db')
+    cursor = conn.execute( '''SELECT Genre_imdb, COUNT(Genre_imdb) AS Genre_Count
+                              FROM Movie_Genre
+                              LEFT JOIN Own_Rating
+                              ON Movie_Genre.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?
+                              GROUP BY Genre_imdb
+                              ORDER BY Genre_Count DESC''' , (profilName,))
+    relevant_Genre = []
+    for row in cursor:
+        if row[1] < 10:
+            break
+        relevant_Genre.append(row[0])
+    return relevant_Genre
+
+
+def determineStarVariables(profilName):
+    conn = sqlite3.connect('Movie_Database.db')
+    cursor = conn.execute( '''SELECT Star_imdb, COUNT(Star_imdb) AS Star_Count
+                              FROM Movie_Star
+                              LEFT JOIN Own_Rating
+                              ON Movie_Star.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?
+                              GROUP BY Star_imdb
+                              ORDER BY Star_Count DESC''' , (profilName,))
+    relevant_Stars = []
+    for row in cursor:
+        if row[1] < 15:
+            break
+        relevant_Stars.append(row[0])
+    return relevant_Stars
+
+
+def determineDirectorVariables(profilName):
+    conn = sqlite3.connect('Movie_Database.db')
+    cursor = conn.execute( '''SELECT Director_imdb, COUNT(Director_imdb) AS Director_Count
+                              FROM Movie_Director
+                              LEFT JOIN Own_Rating
+                              ON Movie_Director.imdbID = Own_Rating.imdbID
+                              WHERE Rater = ?
+                              GROUP BY Director_imdb
+                              ORDER BY Director_Count DESC''' , (profilName,))
+    relevant_Directors = []
+    for row in cursor:
+        if row[1] < 8:
+            break
+        relevant_Directors.append(row[0])
+    return relevant_Directors
     
     
         
@@ -271,6 +347,8 @@ def get_profilName(profil_id):
     tag = tag.find("a")
     profil_name = tag["title"]
     return profil_name
+    
+
     
 
 #First main Function: working with SQLite Database. Asks for filmempfehlung.com profil_id,
@@ -528,7 +606,55 @@ def SQLToMovieDict(profil_id):
     
 
 
+#Third main function: movie dict to pandas dataframe. 
+#Takes movie_dict from second main function and creates a pandas dataframe with relevant Features (above a certain threshold)
 
+def MovieDictToPandas(movie_dict, profilName):
+    movie_pandas_list = []
+    relevantCountries = determineCountryVariables(profilName)
+    relevantWriter = determineWriterVariables(profilName)
+    relevantGenre = determineGenreVariables(profilName)
+    relevantStars = determineStarVariables(profilName)
+    relevantDirectors = determineDirectorVariables(profilName)
+    for row in movie_dict.keys():
+        movie = movie_dict.get(row,{})
+        single_movie_dict = {"id": row,"Title": movie["Title"],"Rater_Count":movie["Rater_Count"],
+                             "imdb_Rating": movie["imdb_Rating"],"Personal_Rating":movie["Personal_Rating"],
+                             "Release": movie["Release"],"Runtime": movie["Runtime"]}
+        for country in relevantCountries:
+            single_movie_dict["Country_"+country] = country in movie["Country"]
+        for writer in relevantWriter:
+            try:
+                single_movie_dict["Writer_"+writer] = writer in movie["Writer"]
+            except KeyError:
+                single_movie_dict["Writer_"+writer] = False
+        for genre in relevantGenre:
+            single_movie_dict["Genre_"+genre] = genre in movie["Genre"]
+        for star in relevantStars:
+            try:
+                single_movie_dict["Star_"+star] = writer in movie["Star"]
+            except KeyError:
+                single_movie_dict["Star_"+star] = False
+        for director in relevantDirectors:
+            try:
+                single_movie_dict["Director_"+director] = writer in movie["Director"]
+            except KeyError:
+                single_movie_dict["Director_"+director] = False
+        single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie.get("Star",[]))
+        single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie.get("Star",[]))
+        single_movie_dict["Similar_Movie_Average"] = get_similarRating(movie_dict, row)
+        movie_pandas_list.append(single_movie_dict)
+    movie_trainingData = pd.DataFrame(movie_pandas_list)
+    return movie_trainingData        
+        
+        
+    
+    
+    
+    
+    
+    
+    
     
     
 #Reading Labled Movie Data in Panda Dataframe
