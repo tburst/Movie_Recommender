@@ -193,7 +193,7 @@ def get_similarRating(movie_dict, imdb_id):
             ratings.append(movie_dict[movies]["Personal_Rating"])
         except KeyError:
             continue
-    return numpy.mean(ratings)
+    return np.mean(ratings)
 
 
 def determineCountryVariables(profilName):
@@ -293,7 +293,7 @@ def get_ownMovieList(profil_id,page_site=1):
     page_site = str(page_site)
     link = service_url + "profil,"+profil_id+"_bewertungen~" + page_site + ".html"
     html = urllib.request.urlopen(link).read()
-    soup = BeautifulSoup(html,'html.parser', "lxml")
+    soup = BeautifulSoup(html,"lxml")
     movie_dict = {}
     for movie in  soup.find_all("div",{"class": "float_left tc bewcov"}):
         rating = movie.find("div", {"class": "tc mt10 mb0"}).text
@@ -417,8 +417,9 @@ def filmempfToSQL(profil_id):
             imdb_id = re.findall("title/tt(.+)", imdb_link)
             imdb_id = int(imdb_id[0])
             #Exit loop if current movie already in database
+            title = get_title(soup)
             if imdb_id in rated_movies:
-                print("Movie with id",movie, "already in database!")
+                print("Movie",title, "already in database!")
                 break
             rater = profilName
             #Insert data for scraped movie in SQL-Database
@@ -520,8 +521,8 @@ def filmempfToSQL(profil_id):
             time.sleep(5)
         #Exit loop if current movie already in database
         if imdb_id in rated_movies:
-            print("Database Update Done!")
             break 
+    print("Database Update Done!")
 
 
 
@@ -529,9 +530,7 @@ def filmempfToSQL(profil_id):
 #The dictionary can than be used to create a csv file to train a random forest model
 
 
-def SQLToMovieDict(profil_id):
-    profil_id = str(profil_id)
-    profilName = get_profilName(profil_id)
+def SQLToMovieDict(profilName):
     conn = sqlite3.connect('Movie_Database.db')
     #Build Imdb Dict from SQL data
     #General imdb data
@@ -657,7 +656,7 @@ def createTrainingFeatureList(movie_trainingData, profilName):
     relevantGenre = determineGenreVariables(profilName)
     relevantStars = determineStarVariables(profilName)
     relevantDirectors = determineDirectorVariables(profilName)
-    trainingFeatures = ["Release","imdbRating","Runtime","Rater","OscarWinnerMale_Since1980",
+    trainingFeatures = ["Release","imdb_Rating","Runtime","Rater_Count","OscarWinnerMale_Since1980",
                         "OscarWinnerFemale_Since1980", "Similar_Movie_Average"]
     for country in relevantCountries:
         trainingFeatures.append("Country_" + country)
@@ -672,290 +671,143 @@ def createTrainingFeatureList(movie_trainingData, profilName):
     return trainingFeatures
 
 
-
-        
-        
- #Reading Labled Movie Data in Panda Dataframe
-#Features with single actors or directors are based on their count. 
-#E.g. every actor who played in ten or more movies in the training data got an own variable       
+    
+    
+    
+    
     
 
-train_data = pd.read_csv('CurrentMovieData.csv', header = 0, encoding = "ISO-8859-1")
-train_data = train_data.dropna()
-predictors = train_data[[   "Release","imdbRating","Runtime",
-                    "Rater","Genre_Drama","Genre_Comedy",
-                    "Genre_Thriller","Genre_Action","Genre_Romance",
-                    "Genre_Crime","Genre_Adventure","Genre_Biography",
-                    "Genre_Mystery","Genre_Sci-Fi","Genre_Fantasy",
-                    "Genre_Horror","Genre_History","Genre_Music",
-                    "Genre_War","Genre_Sport","Genre_Family",
-                    "Genre_Musical","Genre_Documentary","Genre_Western",
-                    "Genre_Animation","Genre_Adult","Country_USA",
-                    "Country_UK", "Country_France","Country_Germany",
-                    "Country_Canada", "Country_Spain", "Country_Belgium",
-                    "Country_Australia","Country_Italy","Country_China",
-                    "Country_Sweden","Country_Denmark","Country_Japan",
-                    "Country_Austria","Country_Switzerland","Country_South Africa",
-                    "Country_Ireland", "Country_Netherlands","Country_Hong Kong",
-                    "Director_Clint Eastwood", "Director_Ridley Scott","Director_Steven Spielberg",
-                    "Director_Steven Soderbergh", "Director_Lasse Hallström","Director_Oliver Stone",
-                    "Director_Peter Jackson","Writer_Luc Besson","Writer_Akiva Goldsman",
-                    "Writer_Fran Walsh","Writer_Brian Helgeland","Writer_Ethan Coen",
-                    "Writer_Woody Allen","Star_Morgan Freeman", "Star_Samuel L. Jackson",
-                    "Star_Matt Damon","Star_Robert De Niro","Star_Stellan Skarsgard",
-                    "Star_Mark Strong", "Star_Ben Kingsley", "Star_Bruce Willis",
-                    "Star_Russell Crowe", "Star_Tom Hanks","Star_Cate Blanchett",
-                    "Star_J.K. Simmons","Star_James Franco","Star_Liam Neeson",
-                    "Star_Nicole Kidman","Star_Scarlett Johansson","Star_Sigourney Weaver",
-                    "Star_Angelina Jolie","Star_Colin Firth","Star_Ewan McGregor",
-                    "Star_Jason Statham","Star_Jude Law","Star_Keira Knightley",
-                    "Star_Leonardo DiCaprio", "Star_Mark Wahlberg","Star_Patricia Clarkson",
-                    "Star_Woody Harrelson","Star_Brad Pitt","Star_Channing Tatum",
-                    "Star_David Thewlis", "Star_Ed Harris","Star_Michael Caine",
-                    "Star_Nicolas Cage", "Star_Stanley Tucci","OscarWinnerMale_Since1980",
-                    "OscarWinnerFemale_Since1980", "Similar_Movie_Average"]]
-targets = train_data["OwnRating"].values
-predictors.shape
-targets.shape
-
-#Training Random Forest Model
-
-print("Building random forest model...")
-forest = RandomForestRegressor(n_estimators = 4000)
-forest = forest.fit(predictors,targets )        
-
-
-#Starting loop to insert imdb links and return calculated rating
-
-profil_id = input("Insert your filmempfehlungs-id(Numbers in the link to your profil): ")
-
 while True:
-    #ask for imdb link. Quit loop if user writes break
-    imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite break to quit the program:....\n  " )
-    if imdb_link == "break":
-        break
-    #try to open given imdb link with beautifulsoup
-    #return to start if link is a series or if link isnt a correct imdb link
-    html = urllib.request.urlopen(imdb_link).read()
-    soup = BeautifulSoup(html, "lxml")
-    try:
-        if is_series(soup):
-            print("\nSeries are currently not supported. Please choose another movie" )
-            continue
-    except TypeError:
-        print("\nNo proper imdb link! Please insert another link")
+    user_decision = input("Hello! Write 'database' to update/create your movie-database.\nWrite 'recommend' to ask for movie recommendations.\nTo quit write 'break\n'") 
+    if user_decision == "break":
+        print("Goodbye!")
+        break    
+    profil_id = input("Please insert your filmempfehlungs-id(Numbers in the link to your profil): ") 
+    profilName = ""
+    forest = ""
+    if user_decision == "database":
+        if not profilName:
+            profilName = get_profilName(profil_id)
+        filmempfToSQL(profil_id)
         continue
-    #get imdb data from link
-    #return to start if movie hase no imdb rating
-    imdb_id = re.findall("title/tt(.+)/", imdb_link)
-    imdb_id = int(imdb_id[0])
-    title = get_title(soup)
-    release = get_year(soup)
-    try:    
-        imdb_rating = get_rating(soup)
-    except UnboundLocalError:
-        print("\nMovie has no imdb rating. Please choose another movie" )
-        continue
-    runtime = get_runtime(soup)
-    rater = get_rater(soup)
-    genre = get_genres(soup)
-    drama = "Drama" in genre
-    comedy = "Comedy" in genre
-    thriller = "Thriller" in genre
-    action = "Action" in genre
-    romance = "Romance" in genre
-    crime = "Crime" in genre
-    adventure = "Adventure" in genre
-    bio = "Biography" in genre
-    mystery = "Mystery" in genre
-    scifi = "Sci-Fi" in genre
-    fantasy = "Fantasy" in genre
-    horror = "Horror" in genre
-    history = "History" in genre        
-    music = "Music" in genre 
-    war = "War" in genre 
-    sport = "Sport" in genre 
-    family = "Family" in genre 
-    musical = "Musical" in genre         
-    docu = "Documentary" in genre
-    western = "Western" in genre
-    animation = "Animation" in genre
-    adult = "Adult" in genre
-    country = get_country(soup)
-    usa = "USA" in country
-    uk = "UK" in country
-    france = "France" in country
-    germany = "Germany" in country
-    canada = "Canada" in country
-    spain = "Spain" in country
-    belgium = "Belgium" in country
-    australia = "Australia" in country
-    italy = "Italy" in country
-    china = "China" in country
-    sweden = "Sweden" in country
-    denmark = "Denmark" in country
-    japan = "Japan" in country
-    austria = "Austria" in country
-    switzerland = "Switzerland" in country
-    southafrica = "South Africa" in country
-    ireland = "Ireland" in country
-    netherlands = "Netherlands" in country
-    hongkong = "Hong Kong" in country
-    director = get_director(soup)
-    clinteastwood = "Clint Eastwood" in director
-    ridleyscott = "Ridley Scott" in director
-    spielberg = "Steven Spielberg" in director
-    soderbergh = "Steven Soderbergh" in director
-    hallstroem = "Lasse Hallström" in director
-    oliverstone = "Oliver Stone" in director
-    peterjackson = "Peter Jackson" in director
-    writer = get_writer(soup)
-    lucbesson = "Luc Besson" in writer
-    goldsman = "Akiva Goldsman" in writer
-    walsh = "Fran Walsh" in writer
-    helgeland = "Brian Helgeland" in writer
-    ethancoen = "Ethan Coen" in writer
-    woodyallen = "Woody Allen" in writer
-    star = get_cast(soup)
-    freeman = "Morgan Freeman" in star
-    jackson = "Samuel L. Jackson" in star
-    damon = "Matt Damon" in star
-    niro = "Robert De Niro" in star
-    stellan = "Stellan Skarsgård" in star
-    strong = "Mark Strong" in star
-    kingsley = "Ben Kingsley" in star
-    willis = "Bruce Willis" in star
-    crowe = "Russell Crowe" in star        
-    hanks = "Tom Hanks" in star
-    cate = "Cate Blanchett" in star
-    simmons = "J.K. Simmons" in star
-    franco = "James Franco" in star
-    neeson = "Liam Neeson" in star
-    kidman = "Nicole Kidman" in star
-    johansson = "Scarlett Johansson" in star        
-    weaver = "Sigourney Weaver" in star
-    jolie = "Angelina Jolie" in star
-    firth = "Colin Firth" in star
-    ewan = "Ewan McGregor" in star
-    statham = "Jason Statham" in star
-    jude = "Jude Law" in star
-    keira = "Keira Knightley" in star
-    caprio = "Leonardo DiCaprio" in star
-    wahlberg = "Mark Wahlberg" in star
-    clarkson = "Patricia Clarkson" in star
-    harrelson = "Woody Harrelson" in star
-    pitt = "Brad Pitt" in star
-    tatum = "Channing Tatum" in star
-    thewlis = "David Thewlis" in star
-    harris = "Ed Harris" in star
-    caine = "Michael Caine" in star
-    cage = "Nicolas Cage" in star
-    tucci = "Stanley Tucci" in star
-    oscarmale = check_OscarWinnerMale(star)
-    oscarfemale = check_OscarWinnerFemale(star)
-    #check for every similar movie if it has a personal rating in the database
-    #return average over all returned personal ratings
-    similars = get_similar(soup)
-    conn = sqlite3.connect('Movie_Database.db')
-    rated_movies = []
-    cursor = conn.execute(''' SELECT  imdbID FROM Own_Rating ''')
-    for row in cursor:
-        rated_movies.append(row[0])
-    if imdb_id in rated_movies:
-        cursor = conn.execute(''' SELECT  Personal_Rating FROM Own_Rating WHERE imdbID == ?''', (imdb_id,))
-        rating = cursor.fetchone()
-        print("\nMovie already watched. (You rated it with ", rating[0], "points if you can't remember). Please choose another movie")
-        continue
-    similar_ratings = []
-    for similar_movie in similars:
-        cursor = conn.execute(''' SELECT  Personal_Rating FROM Own_Rating WHERE imdbID == ?''', (similar_movie,))
-        rating = cursor.fetchone()
-        try:
-            similar_ratings.append(rating[0])
-        except TypeError:
-            continue
-    if not similar_ratings:
-        print("\nNot enough similar movies in your personal database. Please choose another movie")
-        continue
-    similar_rating = np.mean(similar_ratings)
-    if np.isnan(similar_rating):
-        print("\nNot enough similar movies in your personal database. Please choose another movie")
-        continue
-    attribut_dict = [{"Release" : release ,"imdbRating" : imdb_rating,"Runtime" : runtime,
-                    "Rater" : rater,"Genre_Drama" : drama,"Genre_Comedy":comedy,
-                    "Genre_Thriller":thriller,"Genre_Action":action,"Genre_Romance":romance,
-                    "Genre_Crime" : crime,"Genre_Adventure" : adventure,"Genre_Biography" : bio,
-                    "Genre_Mystery" : mystery,"Genre_Sci-Fi" : scifi,"Genre_Fantasy" : fantasy,
-                    "Genre_Horror" : horror,"Genre_History" : history,"Genre_Music" : music,
-                    "Genre_War" : war,"Genre_Sport" : sport,"Genre_Family" : family,
-                    "Genre_Musical" : musical,"Genre_Documentary" : docu,"Genre_Western" : western,
-                    "Genre_Animation" : animation,"Genre_Adult" : adult,"Country_USA" : usa,
-                    "Country_UK" : uk, "Country_France" : france,"Country_Germany" : germany,
-                    "Country_Canada" : canada, "Country_Spain" : spain, "Country_Belgium" : belgium,
-                    "Country_Australia" : australia,"Country_Italy" : italy,"Country_China" : china,
-                    "Country_Sweden" : sweden,"Country_Denmark" : denmark,"Country_Japan" : japan,
-                    "Country_Austria" : austria,"Country_Switzerland" : switzerland,"Country_South Africa" : southafrica,
-                    "Country_Ireland" : ireland, "Country_Netherlands" : netherlands,"Country_Hong Kong" : hongkong,
-                    "Director_Clint Eastwood" : clinteastwood, "Director_Ridley Scott" : ridleyscott,"Director_Steven Spielberg" : spielberg,
-                    "Director_Steven Soderbergh" : soderbergh, "Director_Lasse Hallström" : hallstroem,"Director_Oliver Stone" : oliverstone,
-                    "Director_Peter Jackson" : peterjackson,"Writer_Luc Besson" : lucbesson,"Writer_Akiva Goldsman" : goldsman,
-                    "Writer_Fran Walsh" : walsh,"Writer_Brian Helgeland" : helgeland,"Writer_Ethan Coen" : ethancoen,
-                    "Writer_Woody Allen" : woodyallen,"Star_Morgan Freeman" : freeman, "Star_Samuel L. Jackson" : jackson,
-                    "Star_Matt Damon" : damon,"Star_Robert De Niro" : niro,"Star_Stellan Skarsgard" : stellan,
-                    "Star_Mark Strong" : strong, "Star_Ben Kingsley" : kingsley, "Star_Bruce Willis" : willis,
-                    "Star_Russell Crowe" : crowe, "Star_Tom Hanks" : hanks,"Star_Cate Blanchett" : cate,
-                    "Star_J.K. Simmons" : simmons,"Star_James Franco" : franco,"Star_Liam Neeson" : neeson,
-                    "Star_Nicole Kidman" : kidman,"Star_Scarlett Johansson" : johansson,"Star_Sigourney Weaver" : weaver,
-                    "Star_Angelina Jolie" : jolie,"Star_Colin Firth" : firth,"Star_Ewan McGregor" : ewan,
-                    "Star_Jason Statham" : statham,"Star_Jude Law" : jude,"Star_Keira Knightley" : keira,
-                    "Star_Leonardo DiCaprio" : caprio, "Star_Mark Wahlberg" : wahlberg,"Star_Patricia Clarkson" : clarkson,
-                    "Star_Woody Harrelson" : harrelson,"Star_Brad Pitt" : pitt,"Star_Channing Tatum" : tatum,
-                    "Star_David Thewlis" : thewlis, "Star_Ed Harris" : harris,"Star_Michael Caine" : caine,
-                    "Star_Nicolas Cage" : cage, "Star_Stanley Tucci" : tucci,"OscarWinnerMale_Since1980" : oscarmale,
-                    "OscarWinnerFemale_Since1980" : oscarfemale, "Similar_Movie_Average" : similar_rating}]
-    new_movie_data = pd.DataFrame(attribut_dict)
-    new_movie_data_predictors = new_movie_data[["Release","imdbRating","Runtime",
-                    "Rater","Genre_Drama","Genre_Comedy",
-                    "Genre_Thriller","Genre_Action","Genre_Romance",
-                    "Genre_Crime","Genre_Adventure","Genre_Biography",
-                    "Genre_Mystery","Genre_Sci-Fi","Genre_Fantasy",
-                    "Genre_Horror","Genre_History","Genre_Music",
-                    "Genre_War","Genre_Sport","Genre_Family",
-                    "Genre_Musical","Genre_Documentary","Genre_Western",
-                    "Genre_Animation","Genre_Adult","Country_USA",
-                    "Country_UK", "Country_France","Country_Germany",
-                    "Country_Canada", "Country_Spain", "Country_Belgium",
-                    "Country_Australia","Country_Italy","Country_China",
-                    "Country_Sweden","Country_Denmark","Country_Japan",
-                    "Country_Austria","Country_Switzerland","Country_South Africa",
-                    "Country_Ireland", "Country_Netherlands","Country_Hong Kong",
-                    "Director_Clint Eastwood", "Director_Ridley Scott","Director_Steven Spielberg",
-                    "Director_Steven Soderbergh", "Director_Lasse Hallström","Director_Oliver Stone",
-                    "Director_Peter Jackson","Writer_Luc Besson","Writer_Akiva Goldsman",
-                    "Writer_Fran Walsh","Writer_Brian Helgeland","Writer_Ethan Coen",
-                    "Writer_Woody Allen","Star_Morgan Freeman", "Star_Samuel L. Jackson",
-                    "Star_Matt Damon","Star_Robert De Niro","Star_Stellan Skarsgard",
-                    "Star_Mark Strong", "Star_Ben Kingsley", "Star_Bruce Willis",
-                    "Star_Russell Crowe", "Star_Tom Hanks","Star_Cate Blanchett",
-                    "Star_J.K. Simmons","Star_James Franco","Star_Liam Neeson",
-                    "Star_Nicole Kidman","Star_Scarlett Johansson","Star_Sigourney Weaver",
-                    "Star_Angelina Jolie","Star_Colin Firth","Star_Ewan McGregor",
-                    "Star_Jason Statham","Star_Jude Law","Star_Keira Knightley",
-                    "Star_Leonardo DiCaprio", "Star_Mark Wahlberg","Star_Patricia Clarkson",
-                    "Star_Woody Harrelson","Star_Brad Pitt","Star_Channing Tatum",
-                    "Star_David Thewlis", "Star_Ed Harris","Star_Michael Caine",
-                    "Star_Nicolas Cage", "Star_Stanley Tucci","OscarWinnerMale_Since1980",
-                    "OscarWinnerFemale_Since1980", "Similar_Movie_Average"]]
-    calculated_rating = forest.predict(new_movie_data_predictors)
-    print("You would rate the movie ", title, " with a rating of: ",calculated_rating[0] )
-    cursor = conn.execute('''INSERT OR IGNORE INTO Potential_Movies (imdbID, 
+    elif user_decision == "recommend":
+        if not profilName:
+            profilName = get_profilName(profil_id)
+        if not forest:
+            print("Collecting training data...")
+            movie_dict = SQLToMovieDict(profilName)
+            movie_trainingData = MovieDictToPandas(movie_dict, profilName)
+            movie_trainingData[["Runtime","Similar_Movie_Average"]] = movie_trainingData[["Runtime","Similar_Movie_Average"]].apply(pd.to_numeric)
+            movie_trainingData = movie_trainingData.dropna()
+            trainingFeatures = createTrainingFeatureList(movie_trainingData, profilName)
+            print("There are overall",len(movie_trainingData.index),"movies with", len(movie_trainingData.columns),"features to train the algorithm")
+            predictors = movie_trainingData[trainingFeatures]
+            targets = movie_trainingData["Personal_Rating"].values
+            print("Training random forest model...")
+            forest = RandomForestRegressor(n_estimators = 3000)
+            forest = forest.fit(predictors,targets ) 
+            relevantCountries = determineCountryVariables(profilName)
+            relevantWriter = determineWriterVariables(profilName)
+            relevantGenre = determineGenreVariables(profilName)
+            relevantStars = determineStarVariables(profilName)
+            relevantDirectors = determineDirectorVariables(profilName)
+            print("Done. Now insert new movies to get a caluclated rating based on your already rated movies.")
+        while True:
+            imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the recommendation mode:....\n  " )
+            if imdb_link == "break":
+                break
+            #try to open given imdb link with beautifulsoup
+            #return to start if link is a series or if link isnt a correct imdb link
+            html = urllib.request.urlopen(imdb_link).read()
+            soup = BeautifulSoup(html, "lxml")
+            try:
+                if is_series(soup):
+                    print("\nSeries are currently not supported. Please choose another movie" )
+                    continue
+            except TypeError:
+                print("\nNo proper imdb link! Please insert another link")
+                continue
+            imdb_id = re.findall("title/tt(.+)/", imdb_link)
+            imdb_id = int(imdb_id[0])
+            single_movie_dict = {}
+            #get imdb data from link
+            #return to start if movie hase no imdb rating
+            single_movie_dict["id"] = imdb_id
+            single_movie_dict["Title"] = get_title(soup)
+            single_movie_dict["Rater_Count"] = get_rater(soup)
+            single_movie_dict["Release"] = get_year(soup)
+            single_movie_dict["Runtime"] = get_runtime(soup)
+            try:    
+                single_movie_dict["imdb_Rating"]  = get_rating(soup)
+            except UnboundLocalError:
+                print("\nMovie has no imdb rating. Please choose another movie" )
+                continue
+            movie_genres = get_genres(soup)
+            movie_country = get_country(soup)
+            movie_director = get_director(soup)
+            movie_writer = get_writer(soup)
+            movie_star = get_cast(soup)
+            movie_similar = get_similar(soup)
+            for country in relevantCountries:
+                single_movie_dict["Country_"+country] = country in movie_country
+            for writer in relevantWriter:
+                try:
+                    single_movie_dict["Writer_"+writer] = writer in movie_writer
+                except KeyError:
+                    single_movie_dict["Writer_"+writer] = False
+            for genre in relevantGenre:
+                single_movie_dict["Genre_"+genre] = genre in movie_genres 
+            for star in relevantStars:
+                try:
+                    single_movie_dict["Star_"+star] = writer in movie_star
+                except KeyError:
+                    single_movie_dict["Star_"+star] = False
+            for director in relevantDirectors:
+                try:
+                    single_movie_dict["Director_"+director] = writer in movie_director
+                except KeyError:
+                    single_movie_dict["Director_"+director] = False
+            similar_ratings = []
+            similars = get_similar(soup)
+            for similar_movie in similars:
+                conn = sqlite3.connect('Movie_Database.db')
+                cursor = conn.execute(''' SELECT  Personal_Rating FROM Own_Rating WHERE imdbID == ? AND Rater == ? ''', (similar_movie,profilName))
+                rating = cursor.fetchone()
+                try:
+                    similar_ratings.append(rating[0])
+                except TypeError:
+                    continue
+            if not similar_ratings:
+                print("\nNot enough similar movies in your personal database. Please choose another movie")
+                continue
+            similar_rating = np.mean(similar_ratings)
+            if np.isnan(similar_rating):
+                print("\nNot enough similar movies in your personal database. Please choose another movie")
+                continue
+            single_movie_dict["Similar_Movie_Average"] =  similar_rating
+            single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
+            single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
+            new_movie_data_predictors = pd.DataFrame([single_movie_dict])
+            new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
+            calculated_rating = forest.predict(new_movie_data_predictors)
+            print("You would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
+            print("Saving calculated rating in database for potential new movies.")
+            cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
                                                               Title_imdb,
                                                               Calculated_Rating
                                                               )
                                                               VALUES (?,?,?)''',           
-                                                             (imdb_id, 
-                                                              title,
+                                                             (single_movie_dict["id"], 
+                                                              single_movie_dict["Title"],
                                                               calculated_rating[0]
                                                               )
                         )
-    conn.commit()
+            conn.commit()
+
+            
+
+            
+            
+            
+        
+        
