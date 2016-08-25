@@ -9,6 +9,7 @@ import sqlite3
 import numpy as np
 from bs4 import BeautifulSoup
 import urllib.request
+import random
 
 
 
@@ -389,9 +390,11 @@ def filmempfToSQL(profil_id):
                                                            Rater VARCHAR(30), 
                                                            FilmempfehlungID NUMERIC,
                                                            PRIMARY KEY (imdbID, Rater  ))''')
-    conn.execute('''CREATE TABLE IF NOT EXISTS Potential_Movies(imdbID NUMERIC PRIMARY KEY,
+    conn.execute('''CREATE TABLE IF NOT EXISTS Potential_Movies(imdbID NUMERIC,
                                                                 Title_imdb VARCHAR(30),
-                                                                Calculated_Rating NUMERIC)''')
+                                                                Calculated_Rating NUMERIC,
+                                                                Rater VARCHAR(30),
+                                                                PRIMARY KEY (imdbID,Rater))''')
     #Get all movies already saved in database
     cursor = conn.execute(''' SELECT  imdbID FROM Own_Rating WHERE Rater = ? ''',(profilName,))
     rated_movies = []
@@ -401,6 +404,7 @@ def filmempfToSQL(profil_id):
     for i in range(1, last_page + 1):
         print("Filmempfehlung.com Profil Page:",i)
         personal_movie_dict = get_ownMovieList(profil_id,i)
+        break_after_page = False
         for movie in personal_movie_dict.keys():
             print("FilmempfehlungsID:", movie)
             personal_rating = personal_movie_dict[movie]["Rating"]
@@ -420,8 +424,10 @@ def filmempfToSQL(profil_id):
             title = get_title(soup)
             if imdb_id in rated_movies:
                 print("Movie",title, "already in database!")
-                break
+                break_after_page = True
+                continue
             rater = profilName
+            conn.execute('''DELETE FROM Potential_Movies WHERE imdbID = ?''',(imdb_id,)) 
             #Insert data for scraped movie in SQL-Database
             conn.execute('''INSERT OR REPLACE INTO Own_Rating (imdbID, 
                                                               Personal_Rating,
@@ -518,11 +524,11 @@ def filmempfToSQL(profil_id):
                                                                       )
                             )
             conn.execute('''DELETE FROM Potential_Movies
-                            WHERE imdbID = ?''', (imdb_id,))
+                            WHERE imdbID = ? AND Rater = ?''', (imdb_id,rater))
             conn.commit()
             time.sleep(5)
         #Exit loop if current movie already in database
-        if imdb_id in rated_movies:
+        if break_after_page:
             break 
     print("Database Update Done!")
 
@@ -675,10 +681,10 @@ def createTrainingFeatureList(profilName):
 
 #Two function to search imdb for random movies
     
-def setImdbSearchParam(page,num_votes="1000,",production_status="released",release_date="2005,2016",title_type="feature",user_rating="6.0,10"):
+def setImdbSearchParam(page,languages="en",num_votes="1000,",production_status="released",release_date="2005,2016",title_type="feature",user_rating="6.0,10"):
     page = str(page)    
     imdb_serviceurl = "http://www.imdb.com/search/title?"
-    search_url = imdb_serviceurl + "num_votes=" + num_votes + "&" + "production_status=" + production_status + "&" + "release_date=" + release_date + "&" + "title_type=" + title_type + "&" + "user_rating=" + user_rating + "&page=" + page + "&" + "sort=moviemeter,asc"       
+    search_url = imdb_serviceurl +"languages=" + languages + "&" + "num_votes=" + num_votes + "&" + "production_status=" + production_status + "&" + "release_date=" + release_date + "&" + "title_type=" + title_type + "&" + "user_rating=" + user_rating + "&page=" + page + "&" + "sort=moviemeter,asc"       
     return search_url
 
     
@@ -691,20 +697,84 @@ def getMovieListImdbSearch(search_url,movie_dict):
         y = i.find("div", {"class": "ribbonize"})
         y = y['data-tconst']
         y = int(re.sub("tt","",y))
-        if y in movie_dict.keys():
+        if y in movie_dict:
             continue
         else:
             movie_page_list.append("http://www.imdb.com/title/tt" + str(y) + "/")
     return movie_page_list   
-    
+   
+   
+   
+#Create dict from single movie data to transform it into a pandas dataframe
+
+def createSingleMovieDict(imdb_link,movie_dict,relevantCountries,relevantWriter,relevantGenre,relevantStars,relevantDirectors):      
+    html = urllib.request.urlopen(imdb_link).read()
+    soup = BeautifulSoup(html, "lxml")    
+    imdb_id = re.findall("title/tt(.+)/", imdb_link)
+    imdb_id = int(imdb_id[0])
+    single_movie_dict = {}
+    #get imdb data from link
+    #return to start if movie hase no imdb rating
+    single_movie_dict["id"] = imdb_id
+    single_movie_dict["Title"] = get_title(soup)
+    single_movie_dict["Rater_Count"] = get_rater(soup)
+    single_movie_dict["Release"] = get_year(soup)
+    single_movie_dict["Runtime"] = get_runtime(soup)
+    single_movie_dict["imdb_Rating"]  = get_rating(soup)
+    movie_genres = get_genres(soup)
+    movie_country = get_country(soup)
+    movie_director = get_director(soup)
+    movie_writer = get_writer(soup)
+    movie_star = get_cast(soup)
+    for country in relevantCountries:
+        single_movie_dict["Country_"+country] = country in movie_country
+    for writer in relevantWriter:
+        try:
+            single_movie_dict["Writer_"+writer] = writer in movie_writer
+        except KeyError:
+            single_movie_dict["Writer_"+writer] = False
+    for genre in relevantGenre:
+        single_movie_dict["Genre_"+genre] = genre in movie_genres 
+    for star in relevantStars:
+        try:
+            single_movie_dict["Star_"+star] = writer in movie_star
+        except KeyError:
+            single_movie_dict["Star_"+star] = False
+    for director in relevantDirectors:
+        try:
+            single_movie_dict["Director_"+director] = writer in movie_director
+        except KeyError:
+            single_movie_dict["Director_"+director] = False
+    similar_ratings = []
+    similars = get_similar(soup)
+    for similar_movie in similars:
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  Personal_Rating FROM Own_Rating WHERE imdbID == ? AND Rater == ? ''', (similar_movie,profilName))
+        rating = cursor.fetchone()
+        try:
+            similar_ratings.append(rating[0])
+        except TypeError:
+            continue
+    if not similar_ratings:
+        single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
+        single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
+    else:
+        similar_rating = np.mean(similar_ratings)
+        single_movie_dict["Similar_Movie_Average"] =  similar_rating
+        single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
+        single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
+    return single_movie_dict
+
+
+
     
     
 
 while True:
-    user_decision = input("Hello! Write 'database' to update/create your movie-database.\nWrite 'recommend' to ask for movie recommendations.\nTo quit write 'break\n'") 
+    user_decision = input("\nHello! Write 'database' to update/create your movie-database.\nWrite 'recommend' to ask for movie recommendations.\nTo quit write 'break\n'") 
     if user_decision == "break":
         print("Goodbye!")
-        break    
+        break 
     profil_id = input("Please insert your filmempfehlungs-id(Numbers in the link to your profil): ") 
     profilName = get_profilName(profil_id)
     if user_decision == "database":
@@ -739,116 +809,120 @@ while True:
         relevantGenre = determineGenreVariables(profilName)
         relevantStars = determineStarVariables(profilName)
         relevantDirectors = determineDirectorVariables(profilName)
-        print("Done. Now insert new movies to get a caluclated rating based on your already watched movies.")
+        conn = sqlite3.connect('Movie_Database.db')
+        print("Done.")
         while True:
-            imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the recommendation mode:....\n  " )
-            if imdb_link == "break":
+            user_input = input("\nWrite 'ask' to ask for the estimated rating for a specific movie.\nOr write 'search' to start a automatic search for potential new movies to watch.\nTo quit the recommendation mode write 'break'")
+            if user_input == "ask":
+                while True:
+                    imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the ask mode:....\n  " )
+                    if imdb_link == "break":
+                        break
+                    html = urllib.request.urlopen(imdb_link).read()
+                    soup = BeautifulSoup(html, "lxml")
+                    imdb_id = re.findall("title/tt(.+)/", imdb_link)
+                    imdb_id = int(imdb_id[0])
+                    if imdb_id in movie_dict:
+                        print("\nMovie already watched!")
+                        continue
+                    try:
+                        if is_series(soup):
+                            print("\nSeries are currently not supported. Please choose another movie" )
+                            continue
+                    except TypeError:
+                        print("\nNo proper imdb link! Please insert another link")
+                        continue
+                    try:    
+                        test_rating  = get_rating(soup)
+                    except UnboundLocalError:
+                        print("\nMovie has no imdb rating. Please choose another movie" )
+                        continue
+                    single_movie_dict = createSingleMovieDict(imdb_link,movie_dict,relevantCountries,relevantWriter,relevantGenre,relevantStars,relevantDirectors)
+                    if "Similar_Movie_Average" not in single_movie_dict:
+                        print("\nNot enough similar movies in your personal database. Using weaker backup random forest model")
+                        new_movie_data_predictors = pd.DataFrame([single_movie_dict])
+                        new_movie_data_predictors = new_movie_data_predictors[trainingFeatures_noSimilar]
+                        calculated_rating = forest_noSimilar.predict(new_movie_data_predictors)
+                        print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
+                        print("\nSaving calculated rating in database for potential new movies.")
+                        cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                          Title_imdb,
+                                                                          Calculated_Rating,
+                                                                          Rater
+                                                                          )
+                                                                          VALUES (?,?,?,?)''',           
+                                                                         (single_movie_dict["id"], 
+                                                                          single_movie_dict["Title"],
+                                                                          calculated_rating[0],
+                                                                          profilName)
+                                            )
+                        conn.commit()
+                        continue
+                    else:
+                        new_movie_data_predictors = pd.DataFrame([single_movie_dict])
+                        new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
+                        calculated_rating = forest_all.predict(new_movie_data_predictors)
+                        print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
+                        print("\nSaving calculated rating in database for potential new movies.")
+                        cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                          Title_imdb,
+                                                                          Calculated_Rating,
+                                                                          Rater
+                                                                          )
+                                                                          VALUES (?,?,?,?)''',           
+                                                                         (single_movie_dict["id"], 
+                                                                          single_movie_dict["Title"],
+                                                                          calculated_rating[0],
+                                                                          profilName)
+                                            )
+                        conn.commit() 
+            if user_input == "search":
+                search_results = {}
+                while True:
+                    page = random.randint(1,65)
+                    print("Scraping imdb Search Page number",str(page))
+                    search_url = setImdbSearchParam(page)
+                    random_movie_list = getMovieListImdbSearch(search_url,movie_dict)
+                    for movie in random_movie_list:
+                        time.sleep(5)
+                        html = urllib.request.urlopen(movie).read()
+                        soup = BeautifulSoup(html, "lxml")
+                        single_movie_dict = createSingleMovieDict(movie,movie_dict,relevantCountries,relevantWriter,relevantGenre,relevantStars,relevantDirectors)
+                        if "Similar_Movie_Average" not in single_movie_dict:
+                            continue
+                        else:
+                            new_movie_data_predictors = pd.DataFrame([single_movie_dict])
+                            new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
+                            calculated_rating = forest_all.predict(new_movie_data_predictors)
+                            print("Movie: ", single_movie_dict["Title"].strip(), " Estimated Rating: ",calculated_rating[0] )
+                            cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                              Title_imdb,
+                                                                              Calculated_Rating,
+                                                                              Rater
+                                                                              )
+                                                                              VALUES (?,?,?,?)''',           
+                                                                             (single_movie_dict["id"], 
+                                                                              single_movie_dict["Title"],
+                                                                              calculated_rating[0],
+                                                                              profilName
+                                                                              )
+                                        )
+                            conn.commit()
+                            search_results[single_movie_dict["Title"]] = calculated_rating
+                    print("\nOverall",len(search_results.keys()),"new movies added to potential movie table")
+                    user_break = input("\nWrite 'break' to quit the automatic search.\nPress Enter to continue.")
+                    if user_break == "break":
+                        print("\nSearch results. Following movies added to potential movies:...")
+                        for key in search_results.keys():
+                            print(key.strip(),":",search_results[key][0])
+                        print("\nCurrently the 10 movies with the highest estimated rating in your database are:...")
+                        cursor = conn.execute('''SELECT  Title_imdb,Calculated_Rating FROM Potential_Movies WHERE Rater = ?  ORDER BY Calculated_Rating DESC LIMIT 10''',(profilName,))
+                        for row in cursor:
+                            print(row[0].strip(),":",row[1])
+                        print("\n")
+                        break
+            if user_input == "break":
                 break
-            #try to open given imdb link with beautifulsoup
-            #return to start if link is a series or if link isnt a correct imdb link
-            html = urllib.request.urlopen(imdb_link).read()
-            soup = BeautifulSoup(html, "lxml")
-            try:
-                if is_series(soup):
-                    print("\nSeries are currently not supported. Please choose another movie" )
-                    continue
-            except TypeError:
-                print("\nNo proper imdb link! Please insert another link")
-                continue
-            imdb_id = re.findall("title/tt(.+)/", imdb_link)
-            imdb_id = int(imdb_id[0])
-            if imdb_id in movie_dict.keys():
-                print("\nMovie already watched!")
-                continue
-            single_movie_dict = {}
-            #get imdb data from link
-            #return to start if movie hase no imdb rating
-            single_movie_dict["id"] = imdb_id
-            single_movie_dict["Title"] = get_title(soup)
-            single_movie_dict["Rater_Count"] = get_rater(soup)
-            single_movie_dict["Release"] = get_year(soup)
-            single_movie_dict["Runtime"] = get_runtime(soup)
-            try:    
-                single_movie_dict["imdb_Rating"]  = get_rating(soup)
-            except UnboundLocalError:
-                print("\nMovie has no imdb rating. Please choose another movie" )
-                continue
-            movie_genres = get_genres(soup)
-            movie_country = get_country(soup)
-            movie_director = get_director(soup)
-            movie_writer = get_writer(soup)
-            movie_star = get_cast(soup)
-            movie_similar = get_similar(soup)
-            for country in relevantCountries:
-                single_movie_dict["Country_"+country] = country in movie_country
-            for writer in relevantWriter:
-                try:
-                    single_movie_dict["Writer_"+writer] = writer in movie_writer
-                except KeyError:
-                    single_movie_dict["Writer_"+writer] = False
-            for genre in relevantGenre:
-                single_movie_dict["Genre_"+genre] = genre in movie_genres 
-            for star in relevantStars:
-                try:
-                    single_movie_dict["Star_"+star] = writer in movie_star
-                except KeyError:
-                    single_movie_dict["Star_"+star] = False
-            for director in relevantDirectors:
-                try:
-                    single_movie_dict["Director_"+director] = writer in movie_director
-                except KeyError:
-                    single_movie_dict["Director_"+director] = False
-            similar_ratings = []
-            similars = get_similar(soup)
-            for similar_movie in similars:
-                conn = sqlite3.connect('Movie_Database.db')
-                cursor = conn.execute(''' SELECT  Personal_Rating FROM Own_Rating WHERE imdbID == ? AND Rater == ? ''', (similar_movie,profilName))
-                rating = cursor.fetchone()
-                try:
-                    similar_ratings.append(rating[0])
-                except TypeError:
-                    continue
-            if not similar_ratings:
-                print("\nNot enough similar movies in your personal database. Using weaker backup random forest model")
-                single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
-                single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
-                new_movie_data_predictors = pd.DataFrame([single_movie_dict])
-                new_movie_data_predictors = new_movie_data_predictors[trainingFeatures_noSimilar]
-                calculated_rating = forest_noSimilar.predict(new_movie_data_predictors)
-                print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
-                print("\nSaving calculated rating in database for potential new movies.")
-                cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
-                                                                  Title_imdb,
-                                                                  Calculated_Rating
-                                                                  )
-                                                                  VALUES (?,?,?)''',           
-                                                                 (single_movie_dict["id"], 
-                                                                  single_movie_dict["Title"],
-                                                                  calculated_rating[0]
-                                                                  )
-                            )
-                conn.commit()
-                continue
-            similar_rating = np.mean(similar_ratings)
-            single_movie_dict["Similar_Movie_Average"] =  similar_rating
-            single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
-            single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
-            new_movie_data_predictors = pd.DataFrame([single_movie_dict])
-            new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
-            calculated_rating = forest_all.predict(new_movie_data_predictors)
-            print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
-            print("\nSaving calculated rating in database for potential new movies.")
-            cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
-                                                              Title_imdb,
-                                                              Calculated_Rating
-                                                              )
-                                                              VALUES (?,?,?)''',           
-                                                             (single_movie_dict["id"], 
-                                                              single_movie_dict["Title"],
-                                                              calculated_rating[0]
-                                                              )
-                        )
-            conn.commit()
 
             
 
