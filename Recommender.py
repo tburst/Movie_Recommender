@@ -517,6 +517,8 @@ def filmempfToSQL(profil_id):
                                                                       star
                                                                       )
                             )
+            conn.execute('''DELETE FROM Potential_Movies
+                            WHERE imdbID = ?''', (imdb_id,))
             conn.commit()
             time.sleep(5)
         #Exit loop if current movie already in database
@@ -671,8 +673,29 @@ def createTrainingFeatureList(profilName):
     return trainingFeatures
 
 
+#Two function to search imdb for random movies
     
+def setImdbSearchParam(page,num_votes="1000,",production_status="released",release_date="2005,2016",title_type="feature",user_rating="6.0,10"):
+    page = str(page)    
+    imdb_serviceurl = "http://www.imdb.com/search/title?"
+    search_url = imdb_serviceurl + "num_votes=" + num_votes + "&" + "production_status=" + production_status + "&" + "release_date=" + release_date + "&" + "title_type=" + title_type + "&" + "user_rating=" + user_rating + "&page=" + page + "&" + "sort=moviemeter,asc"       
+    return search_url
+
     
+def getMovieListImdbSearch(search_url,movie_dict):
+    movie_page_list = []
+    html = urllib.request.urlopen(search_url).read()
+    soup = BeautifulSoup(html,'html.parser')
+    tag = soup.findAll("div", {"class": "lister-item mode-advanced"})
+    for i in tag:
+        y = i.find("div", {"class": "ribbonize"})
+        y = y['data-tconst']
+        y = int(re.sub("tt","",y))
+        if y in movie_dict.keys():
+            continue
+        else:
+            movie_page_list.append("http://www.imdb.com/title/tt" + str(y) + "/")
+    return movie_page_list   
     
     
     
@@ -716,7 +739,7 @@ while True:
         relevantGenre = determineGenreVariables(profilName)
         relevantStars = determineStarVariables(profilName)
         relevantDirectors = determineDirectorVariables(profilName)
-        print("Done. Now insert new movies to get a caluclated rating based on your already rated movies.")
+        print("Done. Now insert new movies to get a caluclated rating based on your already watched movies.")
         while True:
             imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the recommendation mode:....\n  " )
             if imdb_link == "break":
@@ -734,6 +757,9 @@ while True:
                 continue
             imdb_id = re.findall("title/tt(.+)/", imdb_link)
             imdb_id = int(imdb_id[0])
+            if imdb_id in movie_dict.keys():
+                print("\nMovie already watched!")
+                continue
             single_movie_dict = {}
             #get imdb data from link
             #return to start if movie hase no imdb rating
@@ -789,8 +815,8 @@ while True:
                 new_movie_data_predictors = pd.DataFrame([single_movie_dict])
                 new_movie_data_predictors = new_movie_data_predictors[trainingFeatures_noSimilar]
                 calculated_rating = forest_noSimilar.predict(new_movie_data_predictors)
-                print("You would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
-                print("Saving calculated rating in database for potential new movies.")
+                print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
+                print("\nSaving calculated rating in database for potential new movies.")
                 cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
                                                                   Title_imdb,
                                                                   Calculated_Rating
@@ -804,17 +830,14 @@ while True:
                 conn.commit()
                 continue
             similar_rating = np.mean(similar_ratings)
-            #if np.isnan(similar_rating):
-                #print("\nNot enough similar movies in your personal database. Using weaker random forest model")
-                #continue
             single_movie_dict["Similar_Movie_Average"] =  similar_rating
             single_movie_dict["OscarWinnerMale_Since1980"] = check_OscarWinnerMale(movie_star)
             single_movie_dict["OscarWinnerFemale_Since1980"] = check_OscarWinnerFemale(movie_star)
             new_movie_data_predictors = pd.DataFrame([single_movie_dict])
             new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
             calculated_rating = forest_all.predict(new_movie_data_predictors)
-            print("You would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
-            print("Saving calculated rating in database for potential new movies.")
+            print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
+            print("\nSaving calculated rating in database for potential new movies.")
             cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
                                                               Title_imdb,
                                                               Calculated_Rating
