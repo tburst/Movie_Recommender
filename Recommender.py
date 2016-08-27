@@ -408,7 +408,6 @@ def filmempfToSQL(profil_id):
         break_after_page = False
         for movie in personal_movie_dict.keys():
             time.sleep(5)
-            print("FilmempfehlungsID:", movie)
             personal_rating = personal_movie_dict[movie]["Rating"]
             imdb_link = personal_movie_dict[movie]["Link"]
             imdb_link = get_imdbLink(imdb_link)
@@ -425,7 +424,7 @@ def filmempfToSQL(profil_id):
             #Exit loop if current movie already in database
             title = get_title(soup)
             if imdb_id in rated_movies:
-                print("Movie",title, "already in database!")
+                print("Movie " + "'" + title.strip() + "'" + " already in database!")
                 break_after_page = True
                 continue
             rater = profilName
@@ -445,7 +444,7 @@ def filmempfToSQL(profil_id):
                         )
             imdb_rating = get_rating(soup)
             title = get_title(soup)
-            print(title)
+            print("'" + title.strip() + "'" + " added to database")
             imdb_rater_count = get_rater(soup)
             release_year = get_year(soup)
             runtime = get_runtime(soup)
@@ -531,7 +530,7 @@ def filmempfToSQL(profil_id):
         #Exit loop if current movie already in database
         if break_after_page:
             break 
-    print("Database Update Done!")
+    print("\nDatabase Update Done!")
 
 
 
@@ -770,15 +769,20 @@ def createSingleMovieDict(imdb_link,movie_dict,relevantCountries,relevantWriter,
 
     
     
-
+print("Hello! I'm your personal movie recommender. I can store your already rated movies in a database, you can ask me how you would like a specific movie and i can automatically search imdb for movies you should watch. Let's start!")
 while True:
-    user_decision = input("\nHello! Write 'database' to update/create your movie-database.\nWrite 'recommend' to ask for movie recommendations.\nTo quit write 'break\n'") 
+    profil_id = input("Please insert your filmempfehlungs-ID(Numbers in the link to your profil): ") 
+    profilName = get_profilName(profil_id)
+    right = input("Is '" + profilName + "' the right username? - write 'y' or 'n': ")
+    if right == "y":
+        break  
+while True:  
+    user_decision = input("\nUse one of the following commands:\n'database' - update/create your movie database with new movies\n'recommend' - start the recommender mode\n'break' - quit the program\nYour input: ") 
     if user_decision == "break":
         print("Goodbye!")
-        break 
-    profil_id = input("Please insert your filmempfehlungs-id(Numbers in the link to your profil): ") 
-    profilName = get_profilName(profil_id)
+        break
     if user_decision == "database":
+        print("Add new rated movies to database...")
         filmempfToSQL(profil_id)
         continue
     elif user_decision == "recommend":
@@ -797,12 +801,12 @@ while True:
         predictors_noSimilar = movie_trainingData_noSimilar[trainingFeatures_noSimilar] 
         targets_noSimilar = movie_trainingData_noSimilar["Personal_Rating"].values
         print("There are overall",len(movie_trainingData.index),"movies with", len(movie_trainingData.columns),"features to train the main algorithm")
-        print("There are overall",len(movie_trainingData_noSimilar.index),"movies with", len(movie_trainingData_noSimilar.columns),"features to train the backup algorithm")        
+        print("There are overall",len(movie_trainingData_noSimilar.index),"movies with", len(movie_trainingData_noSimilar.columns),"features to train the weaker backup algorithm")        
         predictors = movie_trainingData[trainingFeatures]
         targets = movie_trainingData["Personal_Rating"].values
         print("Training random forest model...")
-        forest_all = RandomForestRegressor(n_estimators = 3000)
-        forest_noSimilar = RandomForestRegressor(n_estimators = 3000)
+        forest_all = RandomForestRegressor(n_estimators = 3000, max_features = int(len(trainingFeatures)/3))
+        forest_noSimilar = RandomForestRegressor(n_estimators = 3000 , max_features = int((len(trainingFeatures)-1)/3))
         forest_all = forest_all.fit(predictors,targets ) 
         forest_noSimilar = forest_noSimilar.fit(predictors_noSimilar,targets_noSimilar ) 
         relevantCountries = determineCountryVariables(profilName)
@@ -813,10 +817,17 @@ while True:
         conn = sqlite3.connect('Movie_Database.db')
         print("Done.")
         while True:
-            user_input = input("\nWrite 'ask' to ask for the estimated rating for a specific movie.\nOr write 'search' to start a automatic search for potential new movies to watch.\nWrite 'update' to calculate new ratings for your already recommended movies.\nTo quit the recommendation mode write 'break'")
+            user_input = input("\nUse one of the following commands in the recommend mode:\n'ask' -  ask for the estimated rating for a specific movie.\n'search' -  start a automatic search for potential new movies to watch.\n'update' - calculate new ratings for your already recommended and stored movies.\n'show' - shows the movies in your potential new movie table with the highest estimated rating\n'break' - quit the recommendation mode\nYour input: ")
+            if user_input == "show":
+                show_input = input("Enter the number of movies you wish to see: " )
+                print("\nCurrently the", show_input, "movies with the highest estimated rating in your database for potential new movies are:...")
+                cursor = conn.execute('''SELECT  imdbID,Title_imdb,Calculated_Rating FROM Potential_Movies WHERE Rater = ?  ORDER BY Calculated_Rating DESC LIMIT ?''',(profilName,show_input))
+                print("\n")                            
+                for row in cursor:
+                    print("imdbID:",row[0], row[1].strip() ,":", str(row[2])[:6])
             if user_input == "ask":
                 while True:
-                    imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the ask mode:....\n  " )
+                    imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the ask mode:....\nYour input:   " )
                     if imdb_link == "break":
                         break
                     html = urllib.request.urlopen(imdb_link).read()
@@ -840,13 +851,14 @@ while True:
                         continue
                     single_movie_dict = createSingleMovieDict(imdb_link,movie_dict,relevantCountries,relevantWriter,relevantGenre,relevantStars,relevantDirectors)
                     if "Similar_Movie_Average" not in single_movie_dict:
-                        print("\nNot enough similar movies in your personal database. Using weaker backup random forest model")
+                        print("\nNot enough similar movies in your personal database. Using weaker backup model")
                         new_movie_data_predictors = pd.DataFrame([single_movie_dict])
                         new_movie_data_predictors = new_movie_data_predictors[trainingFeatures_noSimilar]
                         calculated_rating = forest_noSimilar.predict(new_movie_data_predictors)
                         print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
-                        print("\nSaving calculated rating in database for potential new movies.")
-                        cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                        if calculated_rating[0] >= 80:                       
+                            print("\nSaving calculated rating in database for potential new movies.")
+                            cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
                                                                           Title_imdb,
                                                                           Calculated_Rating,
                                                                           Rater
@@ -857,30 +869,32 @@ while True:
                                                                           calculated_rating[0],
                                                                           profilName)
                                             )
-                        conn.commit()
+                            conn.commit()
                         continue
                     else:
                         new_movie_data_predictors = pd.DataFrame([single_movie_dict])
                         new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
                         calculated_rating = forest_all.predict(new_movie_data_predictors)
                         print("\nYou would rate the movie ", single_movie_dict["Title"].strip(), " with a rating of: ",calculated_rating[0] )
-                        print("\nSaving calculated rating in database for potential new movies.")
-                        cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
-                                                                          Title_imdb,
-                                                                          Calculated_Rating,
-                                                                          Rater
-                                                                          )
-                                                                          VALUES (?,?,?,?)''',           
-                                                                         (single_movie_dict["id"], 
-                                                                          single_movie_dict["Title"],
-                                                                          calculated_rating[0],
-                                                                          profilName)
-                                            )
-                        conn.commit() 
+                        if calculated_rating[0] >= 80:                        
+                            print("\nSaving movie in database for potential new movies.")
+                            cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                              Title_imdb,
+                                                                              Calculated_Rating,
+                                                                              Rater
+                                                                              )
+                                                                              VALUES (?,?,?,?)''',           
+                                                                             (single_movie_dict["id"], 
+                                                                              single_movie_dict["Title"],
+                                                                              calculated_rating[0],
+                                                                              profilName)
+                                                )
+                            conn.commit() 
             if user_input == "search":
                 search_results = {}
                 while True:
-                    for page in range(1,65):
+                    start_page = int(input("Insert starting page: "))
+                    for page in range(start_page,65):
                         print("Scraping imdb Search Page number",str(page),"...")
                         search_url = setImdbSearchParam(page)
                         random_movie_list = getMovieListImdbSearch(search_url,movie_dict)
@@ -892,55 +906,57 @@ while True:
                                 new_movie_data_predictors = new_movie_data_predictors[trainingFeatures_noSimilar]
                                 calculated_rating = forest_noSimilar.predict(new_movie_data_predictors)
                                 print("Movie: ", single_movie_dict["Title"].strip(), " Estimated Rating: ",calculated_rating[0],"similar movie data mising! Probably inaccurate!" )
-                                cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
-                                                                                  Title_imdb,
-                                                                                  Calculated_Rating,
-                                                                                  Rater
-                                                                                  )
-                                                                                  VALUES (?,?,?,?)''',           
-                                                                                 (single_movie_dict["id"], 
-                                                                                  single_movie_dict["Title"],
-                                                                                  calculated_rating[0],
-                                                                                  profilName
-                                                                                  )
-                                            )
-                                conn.commit()
-                                search_results[single_movie_dict["Title"]] = calculated_rating
+                                if calculated_rating[0] >= 80:                                
+                                    cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                                      Title_imdb,
+                                                                                      Calculated_Rating,
+                                                                                      Rater
+                                                                                      )
+                                                                                      VALUES (?,?,?,?)''',           
+                                                                                     (single_movie_dict["id"], 
+                                                                                      single_movie_dict["Title"],
+                                                                                      calculated_rating[0],
+                                                                                      profilName
+                                                                                      )
+                                                )
+                                    conn.commit()
+                                    search_results[single_movie_dict["Title"]] = calculated_rating
                             else:
                                 new_movie_data_predictors = pd.DataFrame([single_movie_dict])
                                 new_movie_data_predictors = new_movie_data_predictors[trainingFeatures]
                                 calculated_rating = forest_all.predict(new_movie_data_predictors)
                                 print("Movie: ", single_movie_dict["Title"].strip(), " Estimated Rating: ",calculated_rating[0] )
-                                cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
-                                                                                  Title_imdb,
-                                                                                  Calculated_Rating,
-                                                                                  Rater
-                                                                                  )
-                                                                                  VALUES (?,?,?,?)''',           
-                                                                                 (single_movie_dict["id"], 
-                                                                                  single_movie_dict["Title"],
-                                                                                  calculated_rating[0],
-                                                                                  profilName
-                                                                                  )
-                                            )
-                                conn.commit()
-                                search_results[single_movie_dict["Title"]] = calculated_rating
+                                if calculated_rating[0] >= 80:
+                                    cursor = conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
+                                                                                      Title_imdb,
+                                                                                      Calculated_Rating,
+                                                                                      Rater
+                                                                                      )
+                                                                                      VALUES (?,?,?,?)''',           
+                                                                                     (single_movie_dict["id"], 
+                                                                                      single_movie_dict["Title"],
+                                                                                      calculated_rating[0],
+                                                                                      profilName
+                                                                                      )
+                                                )
+                                    conn.commit()
+                                    search_results[single_movie_dict["Title"]] = calculated_rating
                         print("\nOverall",len(search_results.keys()),"new movies added to potential movie table")
                         user_break = input("\nWrite 'break' to quit the automatic search.\nPress Enter to continue.")
                         if user_break == "break":
                             print("\nSearch results. Following movies added to potential movies:...")
                             for key in search_results.keys():
-                                print(key.strip(),":",search_results[key][0])
-                                print("\nCurrently the 10 movies with the highest estimated rating in your database are:...")
-                                cursor = conn.execute('''SELECT  Title_imdb,Calculated_Rating FROM Potential_Movies WHERE Rater = ?  ORDER BY Calculated_Rating DESC LIMIT 10''',(profilName,))
-                                for row in cursor:
-                                    print(row[0].strip(),":",row[1])
-                                print("\n")
+                                print(key.strip(),":",str(search_results[key][0])[:6])
+                            print("\nCurrently the 20 movies with the highest estimated rating in your database for potential new movies are:...")
+                            cursor = conn.execute('''SELECT  imdbID,Title_imdb,Calculated_Rating FROM Potential_Movies WHERE Rater = ?  ORDER BY Calculated_Rating DESC LIMIT 20''',(profilName,))
+                            print("\n")                            
+                            for row in cursor:
+                                print("imdbID:",row[0], row[1].strip() ,":", str(row[2])[:6])
                             break
                     if user_break == "break":
                         break
             if user_input == "update":
-                cursor = conn.execute('''SELECT imdbID,Calculated_Rating FROM Potential_Movies WHERE Rater = ? AND Calculated_Rating >= 75''', (profilName,))
+                cursor = conn.execute('''SELECT imdbID,Calculated_Rating FROM Potential_Movies WHERE Rater = ? AND Calculated_Rating >= 80''', (profilName,))
                 cursor = cursor.fetchall()
                 print(str(len(cursor)), "movies to update")                
                 for row in cursor:
