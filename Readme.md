@@ -1,11 +1,12 @@
-Takes as input a Sqlite Database and a Csv-File, both containing personal ratings for movies merged with imdb data. Uses this data as a training-dataset to build a random forest model and returns for every new movie (asked via inserted imdb-link) a calculated rating.
+*Currently only works with a filmempfehlung.com profil. Planned to add additional movie rating sites in the future.*
 
-###Already done
-Added functions to work with imdb sites and to scrape imdb data. 
-Added commands to read a csv file with labeld movie data as a pandas data frame and to train a random forest model build on that data.
+Program takes as input the id from your filmempfehlung.com profil (number in the link to your profil page) and trains a random forest model on all rated movies in your profil. It can then be used to ask for specific estimated movie ratings or to perform a search through imdb for potential new movies to watch.
 
 
 ###To Do
-* Add a function to automatically determine fitting features instead of defining features by hand. Function could count the occurence of every actor and build a feature for every single actor above a threshold
-* Add user control. User can decide if he wants to update his database/training data or if he wants to get a specific movie rating.
-* Add some kind of automatic search and recommendation for fitting movies. User can start a search for new movie ideas and the program searches imdb lists, calculates ratings and recommends new movies based on that search.  
+* Add other options for personal movie rating sites (like imdb.com or
+* Add a option to work with more than one user at the same time to find the optimal movie to watch for a group of people.
+* Calculate interesting statistics about movie preferences for users
+* Train several different machine learning models and choose the best performing model for a specific user
+
+
