@@ -12,12 +12,19 @@ import Imdb_Scraper
 import Filmempfehlung_Scraper
 import Database_Handler
 import Recommender_Engine
+
+
+
         
-
-      
-user_database = Database_Handler.Database_Movies("mcfunny")
-user_recommender = Recommender_Engine.Recommender("mcfunny")
-
+userid = ""
+while userid != "break":   
+    userid = input("Please enter your filmempfehlung.com id: " )
+    user = Filmempfehlung_Scraper.FilmempfehlungUser(userid)
+    user_descision = input("Is" , user.profil_name , "the rigth username? Write y/n: ")
+    if user_descision == "y":
+        break
+user_database = Database_Handler.Database_Movies(user.profil_name)
+user_recommender = Recommender_Engine.Recommender(user.profil_name)
 while True:
     user_input = input("\nUse one of the following commands in the recommend mode:\n'ask' -  ask for the estimated rating for a specific movie.\n'search' -  start a automatic search for potential new movies to watch.\n'update' - calculate new ratings for your already recommended and stored movies.\n'show' - shows the movies in your potential new movie table with the highest estimated rating\n'break' - quit the recommendation mode\nYour input: ")
     if user_input == "show":
@@ -109,29 +116,3 @@ while True:
                 break
     if user_input == "break":
         break
-
-                       
-            
-        
-        
-        
-        
-
-        
-                
-
-
-
-#username = "froggy" 
-#froggy_database = Database_Movies(username)
-#froggy_recommender = Recommender(username, froggy_database.rated_movie_dict)
-#froggy_recommender.predictMovieRating(1473832)
-#froggy_recommender.predictMovieRating(848228)
-
-        
-
-#movie1 = Imdb_Movie(104257)
-#print(movie1.rating)
-#print(movie1.get_rating())
-#user = FilmempfehlungUser(1750)
-#print(user.profil_name)
