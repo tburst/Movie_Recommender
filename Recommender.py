@@ -8,6 +8,7 @@ Created on Fri Sep  9 15:32:37 2016
 
 import re
 import time
+
 import Imdb_Scraper
 import Filmempfehlung_Scraper
 import Database_Handler
@@ -20,9 +21,10 @@ userid = ""
 while userid != "break":   
     userid = input("Please enter your filmempfehlung.com id: " )
     user = Filmempfehlung_Scraper.FilmempfehlungUser(userid)
-    user_descision = input("Is" , user.profil_name , "the rigth username? Write y/n: ")
+    user_descision = input("Is '" + str(user.profil_name) + "' the right username? Write y/n: ")
     if user_descision == "y":
         break
+    time.sleep(5)
 user_database = Database_Handler.Database_Movies(user.profil_name)
 user_recommender = Recommender_Engine.Recommender(user.profil_name)
 while True:
