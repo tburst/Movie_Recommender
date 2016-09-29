@@ -28,7 +28,7 @@ while userid != "break":
 user_database = Database_Handler.Database_Movies(user.profil_name)
 user_recommender = Recommender_Engine.Recommender(user.profil_name)
 while True:
-    user_input = input("\nUse one of the following commands in the recommend mode:\n'ask' -  ask for the estimated rating for a specific movie.\n'search' -  start a automatic search for potential new movies to watch.\n'update' - calculate new ratings for your already recommended and stored movies.\n'show' - shows the movies in your potential new movie table with the highest estimated rating\n'break' - quit the recommendation mode\nYour input: ")
+    user_input = input("\nUse one of the following commands in the recommendation mode:\n'ask' -  ask for the estimated rating for a specific movie.\n'search' -  start a automatic search for potential new movies to watch.\n'update' - calculate new ratings for your already recommended and stored movies.\n'show' - shows the movies in your potential new movie table with the highest estimated rating\n'break' - quit the recommendation mode\nYour input: ")
     if user_input == "show":
         show_input = input("Enter the number of movies you wish to see: " )
         print("\nCurrently the", show_input, "movies with the highest estimated rating in your database for potential new movies are:...\n")                         
