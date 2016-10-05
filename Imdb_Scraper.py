@@ -132,7 +132,7 @@ class Imdb_Movie():
     
     def get_country(self):
         tags= str(self.soup("div", { "class" : "txt-block" }))
-        self.country= re.findall("country/.+itemprop=.url.>(.+)</a>", tags)
+        self.country= re.findall("countries.+itemprop=.url.>(.+)</a>", tags)
         return self.country
     
     
@@ -225,7 +225,7 @@ class Imdb_Movie():
                 self.get_cast()
                 
 
-   
+
 
 
 
