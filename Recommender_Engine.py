@@ -211,12 +211,16 @@ class Recommender:
     def create_PandaTrainingDataframe(self):
         self.movie_pandas_list = []
         for row in self.rated_movie_dict.keys():
+            print(row)
             movie = self.rated_movie_dict.get(row,{})
             single_movie_dict = {"id": row,"Title": movie["Title"],"Rater_Count":movie["Rater_Count"],
                                  "imdb_Rating": movie["imdb_Rating"],"Personal_Rating":movie["Personal_Rating"],
                                  "Release": movie["Release"],"Runtime": movie["Runtime"]}
             for country in self.relevant_Countries:
-                single_movie_dict["Country_"+country] = country in movie["Country"]
+                try:
+                    single_movie_dict["Country_"+country] = country in movie["Country"]
+                except KeyError:
+                    single_movie_dict["Country_"+country] = False
             for writer in self.relevant_Writer:
                 try:
                     single_movie_dict["Writer_"+writer] = writer in movie["Writer"]
