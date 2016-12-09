@@ -175,8 +175,9 @@ class Database_Movies:
         self.conn.commit()
     
     
-    def store_PotentialMovie_InDatabase(self, imdb_id, title, calculated_rating, user_name):
-        print("Saving movie in database for potential new movies.")
+    def store_PotentialMovie_InDatabase(self, imdb_id, title, calculated_rating, user_name,saving_message = True):
+        if saving_message:
+            print("Saving movie in database for potential new movies.")
         self.conn.execute('''INSERT OR REPLACE INTO Potential_Movies (imdbID, 
                                                           Title_imdb,
                                                           Calculated_Rating,
@@ -288,9 +289,17 @@ class Database_Movies:
         return self.potential_movies_list
     
     
-    def get_OrderedPotentialMovies(self,movie_count):
+    def get_OrderedPotentialMovies(self,movie_count = 100):
         cursor = self.conn.execute('''SELECT  imdbID,Title_imdb,Calculated_Rating FROM Potential_Movies WHERE Rater = ?  ORDER BY Calculated_Rating DESC LIMIT ?''',(self.user_name,movie_count))
         return cursor
+    
+    
+    def get_PotentialMoviesToUpdate(self):
+        cursor = self.conn.execute('''SELECT imdbID,Calculated_Rating FROM Potential_Movies WHERE Rater = ? AND Calculated_Rating >= 75 ORDER BY Calculated_Rating DESC''',(self.user_name,))
+        potential_movies_to_update = cursor.fetchall()
+        if len(potential_movies_to_update) > 100:
+            potential_movies_to_update = potential_movies_to_update[:100]
+        return potential_movies_to_update
         
 
     def get_similarMovieRatings(self, imdb_id):

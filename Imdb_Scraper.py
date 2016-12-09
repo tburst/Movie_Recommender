@@ -232,7 +232,7 @@ class Imdb_Movie():
 class Imdb_RandomSearch():
     
     imdb_serviceurl = "http://www.imdb.com/search/title?"
-    
+
     
     
     def __init__(self, search_page):
@@ -246,11 +246,15 @@ class Imdb_RandomSearch():
         self.GenerateSearchUrl()
         self.scanned_movies = []
         self.added_movies = {}
+        self.genre_list = ["action","adventure","animation","biography",
+                           "comedy","crime","drama","family","fantasy",
+                           "history","horror","music","musical","mystery",
+                           "romance","sci-fi","sport","thriller","war","western"]
         
         
-    def GenerateSearchUrl(self):
+    def GenerateSearchUrl(self, added_genre = ""):
         page = str(self.search_page)    
-        self.search_url = self.imdb_serviceurl +"languages=" + self.languages + "&" + "num_votes=" + self.num_votes + "&" + "production_status=" + self.production_status + "&" + "release_date=" + self.release_date + "&" + "title_type=" + self.title_type + "&" + "user_rating=" + self.user_rating + "&page=" + page + "&" + "sort=moviemeter,asc"       
+        self.search_url = self.imdb_serviceurl +"languages=" + self.languages + "&" + "num_votes=" + self.num_votes + "&" + "production_status=" + self.production_status + "&" + "release_date=" + self.release_date + "&" + "title_type=" + self.title_type + "&" + "user_rating=" + self.user_rating + "&page=" + page + "&" + "sort=moviemeter,asc" + "&genres=" + added_genre 
         return self.search_url
     
         

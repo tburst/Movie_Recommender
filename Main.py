@@ -45,6 +45,8 @@ while True:
                     continue
                 else:
                     singleMovie_object = Imdb_Scraper.Imdb_Movie(imdbid)
+                    if singleMovie_object.is_series or singleMovie_object.rater <= 0 or singleMovie_object.rating <= 0:
+                        continue
                     user_database.store_FilmempfMovie_InDatabase(imdbid, user.movie_dict[movie]["Rating"], movie)
                     user_database.store_Imdb_MainAttributes_InDatabase(singleMovie_object.imdb_id, singleMovie_object.title, singleMovie_object.rater,singleMovie_object.year, singleMovie_object.runtime, singleMovie_object.rating)
                     user_database.store_Imdb_Genres_InDatabase(singleMovie_object.imdb_id, singleMovie_object.genres)
@@ -69,6 +71,7 @@ while True:
                 best_potential_movies = user_database.get_OrderedPotentialMovies(int(show_input))                    
                 for row in best_potential_movies:
                     print("imdbID:",row[0], row[1].strip() ,":", str(row[2])[:6])
+                print("\n Hint: You already know some of this movies? Just rate them on filmempfehlung.com and run the 'database' command afterwards.")
             if user_input == "ask":
                 while True:
                     imdb_link = input("\nInsert imdb link (Example link: http://www.imdb.com/title/tt1014763/)\nWrite 'break' to quit the ask mode:....\nYour input:   " )
@@ -90,11 +93,26 @@ while True:
                 while True:
                     search_control = input("\nUse one of the following commands in the search mode:\n'random' - start a random imdb search for good movies.\n'similar' - search for good movies similar to your top rated movies.\n'break' - quit the search mode\nYour input: ")
                     if search_control == "random":
+                        genre_decision = input("Do you wish to search for a specific genre? Type 'y/n': ")
                         random_search_control = ""
                         random_search_control_page = int(input("Insert starting page: "))
                         search_engine = Imdb_Scraper.Imdb_RandomSearch(random_search_control_page)
+                        choose_genre = ""
+                        choose_genre_list = []
+                        if genre_decision == "y":
+                            while True:
+                                print("\nCurrently selected genres: '" + "', '".join(choose_genre_list) + "'")
+                                choose_genre = input("\nType one of the following genres:\n" + "'" + "', '".join(search_engine.genre_list) + "' or write 'break': ")
+                                if choose_genre in search_engine.genre_list:
+                                    choose_genre_list.append(choose_genre)
+                                elif choose_genre == "break":
+                                    break
+                                else:
+                                    print("Wrong genre!\n")
+                            choose_genre =  ",".join(choose_genre_list)
+                            print(choose_genre)
                         while random_search_control != "break":
-                            search_engine.GenerateSearchUrl()
+                            search_engine.GenerateSearchUrl(choose_genre)
                             page_list = search_engine.getMovieListForSearchSite(user_database.rated_movie_dict)
                             print("\nScraping imdb search page", search_engine.search_page)
                             for movie in page_list:
@@ -103,7 +121,7 @@ while True:
                                 potential_movie_list = user_database.get_allPotentialMoviesList()
                                 if single_movie_dict["id"] not in potential_movie_list and single_movie_dict["id"] not in user_database.rated_movies_list and "Similar_Movie_Average" in single_movie_dict:
                                     movie_rating = user_recommender.predictMovieRating_Search(single_movie_dict)
-                                    if movie_rating >= 80:
+                                    if movie_rating >= 75:
                                         search_engine.added_movies[single_movie_dict["Title"]] = movie_rating
                                 time.sleep(3)
                             print("\nOverall",len(search_engine.added_movies),"new movies added to potential movie table")
@@ -134,7 +152,7 @@ while True:
                                     single_movie_dict = user_recommender.createSingleMovieTestData(similarSearch_movie)
                                     if "Similar_Movie_Average" in single_movie_dict:
                                         movie_rating = user_recommender.predictMovieRating_Search(single_movie_dict)
-                                        if movie_rating >= 80:
+                                        if movie_rating >= 75:
                                             search_results[single_movie_dict["Title"]] = movie_rating
                                 print("\nOverall",len(search_results),"new movies added to potential movie table")
                                 similar_search_control = input("\nWrite 'break' to quit the similar search.\nPress Enter to continue.")
@@ -150,5 +168,13 @@ while True:
                             print("imdbID:",row[0], row[1].strip() ,":", str(row[2])[:6])
                     if search_control == "break":
                         break
+            if user_input == "update":
+                top_potential_movies = user_database.get_PotentialMoviesToUpdate()
+                print(str(len(top_potential_movies)), "movies to update")  
+                for row in top_potential_movies:
+                    single_movie_object = Imdb_Scraper.Imdb_Movie(row[0])
+                    update_single_movie_dict = user_recommender.createSingleMovieTestData(single_movie_object)
+                    user_recommender.update_potential_movie_rating(update_single_movie_dict,row[1])
+                    time.sleep(5)
             if user_input == "break":
                 break

@@ -119,7 +119,7 @@ class Recommender:
                 
                 
     def check_OscarWinnerMale(self, cast):
-        Oscar_Winner_Male = ["Eddie Redmayne","Matthew McConaughey",
+        Oscar_Winner_Male = ["Leonardo DiCaprio","Eddie Redmayne","Matthew McConaughey",
                              "Daniel Day-Lewis","Jean Dujardin",
                              "Colin Firth","Jeff Bridges",
                              "Sean Penn","Forest Whitaker",
@@ -150,7 +150,7 @@ class Recommender:
 
 
     def check_OscarWinnerFemale(self, cast):
-        Oscar_Winner_Female = ["Julianne Moore","Cate Blanchett",
+        Oscar_Winner_Female = ["Brie Larson","Julianne Moore","Cate Blanchett",
                              "Jennifer Lawrence","Meryl Streep",
                              "Natalie Portman", "Sandra Bullock",
                              "Kate Winslet", "Marion Cotillard",
@@ -211,36 +211,55 @@ class Recommender:
     def create_PandaTrainingDataframe(self):
         self.movie_pandas_list = []
         for row in self.rated_movie_dict.keys():
-            print(row)
             movie = self.rated_movie_dict.get(row,{})
             single_movie_dict = {"id": row,"Title": movie["Title"],"Rater_Count":movie["Rater_Count"],
                                  "imdb_Rating": movie["imdb_Rating"],"Personal_Rating":movie["Personal_Rating"],
                                  "Release": movie["Release"],"Runtime": movie["Runtime"]}
+            firstrun = 0
             for country in self.relevant_Countries:
                 try:
                     single_movie_dict["Country_"+country] = country in movie["Country"]
                 except KeyError:
                     single_movie_dict["Country_"+country] = False
+                    if firstrun == 0:
+                        print("Warning! No country data available for movie with id:",row)
+                    firstrun += 1
+            firstrun = 0
             for writer in self.relevant_Writer:
                 try:
                     single_movie_dict["Writer_"+writer] = writer in movie["Writer"]
                 except KeyError:
                     single_movie_dict["Writer_"+writer] = False
+                    if firstrun == 0:
+                        print("Warning! No writer data available for movie with id:",row)
+                    firstrun += 1
+            firstrun = 0
             for genre in self.relevant_Genre:
                 try:
                     single_movie_dict["Genre_"+genre] = genre in movie["Genre"]
                 except KeyError:
                     single_movie_dict["Genre_"+genre] = False
+                    if firstrun == 0:
+                        print("Warning! No genre data available for movie with id:",row)
+                    firstrun += 1
+            firstrun = 0
             for star in self.relevant_Stars:
                 try:
                     single_movie_dict["Star_"+star] = writer in movie["Star"]
                 except KeyError:
                     single_movie_dict["Star_"+star] = False
+                    if firstrun == 0:
+                        print("Warning! No cast data available for movie with id:",row)
+                    firstrun += 1
+            firstrun = 0
             for director in self.relevant_Directors:
                 try:
                     single_movie_dict["Director_"+director] = writer in movie["Director"]
                 except KeyError:
                     single_movie_dict["Director_"+director] = False
+                    if firstrun == 0:
+                        print("Warning! No director data available for movie with id:",row)
+                    firstrun += 1
             single_movie_dict["OscarWinnerMale_Since1980"] = self.check_OscarWinnerMale(movie.get("Star",[]))
             single_movie_dict["OscarWinnerFemale_Since1980"] = self.check_OscarWinnerFemale(movie.get("Star",[]))
             single_movie_dict["Similar_Movie_Average"] = self.get_similarRatingTrain(row)
@@ -349,9 +368,8 @@ class Recommender:
                 if self.singleMovie_object.rating >= 0 and self.singleMovie_object.rater >= 0:
                     new_movie_data_predictors = self.createSinglePredictors(single_movie_dict_testdata)
                     calculated_rating = self.ModelWithSimilar.predict(new_movie_data_predictors)
-                    print("\nEnough similar movies in your personal database. Using main model")
                     print("\nYou would rate the movie ", self.singleMovie_object.title.strip(), " with a rating of: ",calculated_rating[0] )
-                    if calculated_rating >= 80:
+                    if calculated_rating >= 75:
                         User_Movies.store_Imdb_MainAttributes_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, self.singleMovie_object.rater, self.singleMovie_object.year, self.singleMovie_object.runtime, self.singleMovie_object.rating)
                         User_Movies.store_Imdb_Genres_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.genres)
                         User_Movies.store_Imdb_Writer_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.writer)
@@ -393,7 +411,7 @@ class Recommender:
                 new_movie_data_predictors = self.createSinglePredictors(single_movie_dict_testdata)
                 calculated_rating = self.ModelWithSimilar.predict(new_movie_data_predictors)
                 print("\nMovie:", "'" + self.singleMovie_object.title.strip() + "'", " calculated Rating: ",calculated_rating[0] )
-                if calculated_rating[0] >= 80:
+                if calculated_rating[0] >= 75:
                     User_Movies.store_Imdb_MainAttributes_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, self.singleMovie_object.rater, self.singleMovie_object.year, self.singleMovie_object.runtime, self.singleMovie_object.rating)
                     User_Movies.store_Imdb_Genres_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.genres)
                     User_Movies.store_Imdb_Writer_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.writer)
@@ -405,3 +423,21 @@ class Recommender:
                 return calculated_rating[0]
         else:
             return -1
+            
+    
+    def update_potential_movie_rating(self, single_movie_dict_testdata, old_rating):
+        User_Movies = Database_Handler.Database_Movies(self.user_name)
+        new_movie_data_predictors = self.createSinglePredictors(single_movie_dict_testdata)
+        if "Similar_Movie_Average" in single_movie_dict_testdata:
+            calculated_rating = self.ModelWithSimilar.predict(new_movie_data_predictors)
+        else:
+            calculated_rating = self.ModelWithoutSimilar.predict(new_movie_data_predictors)
+        User_Movies.store_Imdb_MainAttributes_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, self.singleMovie_object.rater, self.singleMovie_object.year, self.singleMovie_object.runtime, self.singleMovie_object.rating)
+        User_Movies.store_Imdb_Genres_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.genres)
+        User_Movies.store_Imdb_Writer_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.writer)
+        User_Movies.store_Imdb_Director_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.director)
+        User_Movies.store_Imdb_Country_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.country)
+        User_Movies.store_Imdb_SimilarMovies_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.similars)
+        User_Movies.store_Imdb_Cast_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.cast)
+        User_Movies.store_PotentialMovie_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, calculated_rating[0], self.user_name,saving_message = False)
+        print("Movie:", single_movie_dict_testdata["Title"].strip(), "...Previous Rating:", str(old_rating)[:6], "...Estimated Rating: ",str(calculated_rating[0])[:6] )
