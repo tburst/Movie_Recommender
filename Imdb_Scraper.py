@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import urllib
 import datetime
 import re
+import sqlite3
 
 
 
@@ -223,6 +224,155 @@ class Imdb_Movie():
                 break
             except AttributeError:
                 self.get_cast()
+
+
+
+
+
+class Database_Movie(Imdb_Movie):
+    
+    
+    def __init__(self,imdb_id):
+        self.imdb_id = imdb_id
+        self.imdb_link = "http://www.imdb.com/title/tt" + str(self.imdb_id) + "/"
+
+        self.get_rating()
+        self.get_rater()
+        self.get_title()
+        self.get_year()
+        self.get_runtime()
+        self.get_genres()
+        self.get_writer()
+        self.get_director()
+        self.get_country()
+        self.get_similar()
+        self.get_cast()
+        
+        self.check_OscarWinnerFemale()
+        self.check_OscarWinnerMale()
+        
+        
+    def get_rating(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  Movie_imdbData.imdbID, Rating_imdb
+                                  FROM Movie_imdbData
+                                  WHERE Movie_imdbData.imdbID = ? ''', (self.imdb_id,))
+        for row in cursor:
+            self.rating = float(row[1])
+        conn.close()
+    
+    
+    def get_rater(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  Movie_imdbData.imdbID, Rater_imdb
+                                  FROM Movie_imdbData
+                                  WHERE Movie_imdbData.imdbID = ? ''', (self.imdb_id,))
+        for row in cursor:
+            self.rater = int(row[1])
+        conn.close()
+    
+    
+    def get_title(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  Movie_imdbData.imdbID, Title_imdb
+                                  FROM Movie_imdbData
+                                  WHERE Movie_imdbData.imdbID = ? ''', (self.imdb_id,))
+        for row in cursor:
+            self.title = str(row[1])
+        conn.close()
+    
+    
+    def get_year(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  Movie_imdbData.imdbID, Release_imdb
+                                  FROM Movie_imdbData
+                                  WHERE Movie_imdbData.imdbID = ? ''', (self.imdb_id,))
+        for row in cursor:
+            self.year = int(row[1])
+        conn.close()
+    
+    
+    def get_runtime(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  Movie_imdbData.imdbID, Runtime_imdb
+                                  FROM Movie_imdbData
+                                  WHERE Movie_imdbData.imdbID = ? ''', (self.imdb_id,))
+        for row in cursor:
+            self.runtime = int(row[1])
+        conn.close()
+    
+    
+    def get_genres(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  imdbID, Genre_imdb
+                                  FROM Movie_Genre
+                                  WHERE imdbID = ? ''', (self.imdb_id,))
+        self.genres = []
+        for row in cursor:
+            self.genres.append(row[1])
+        conn.close()
+    
+    
+    def get_writer(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  imdbID, Writer_imdb
+                                  FROM Movie_Writer
+                                  WHERE imdbID = ? ''', (self.imdb_id,))
+        self.writer = []
+        for row in cursor:
+            self.writer.append(row[1])
+        conn.close()
+    
+    
+    def get_director(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  imdbID, Director_imdb
+                                  FROM Movie_Director
+                                  WHERE imdbID = ? ''', (self.imdb_id,))
+        self.director = []
+        for row in cursor:
+            self.director.append(row[1])
+        conn.close()
+    
+    
+    def get_country(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  imdbID, Country_imdb
+                                  FROM Movie_Country
+                                  WHERE imdbID = ? ''', (self.imdb_id,))
+        self.country = []
+        for row in cursor:
+            self.country.append(row[1])
+        conn.close()
+    
+    
+    def get_similar(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  imdbID, SimilarMovieID_imdb
+                                  FROM Movie_Similar
+                                  WHERE imdbID = ? ''', (self.imdb_id,))
+        self.similars = []
+        for row in cursor:
+            self.similars.append(row[1])
+        conn.close()
+    
+    
+    def get_cast(self):
+        conn = sqlite3.connect('Movie_Database.db')
+        cursor = conn.execute(''' SELECT  imdbID, Star_imdb
+                                  FROM Movie_Star
+                                  WHERE imdbID = ? ''', (self.imdb_id,))
+        self.cast = []
+        for row in cursor:
+            self.cast.append(row[1])
+        conn.close()
+    
+    
+    
+    
+    
+
+    
                 
 
 
