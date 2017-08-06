@@ -30,9 +30,9 @@ class FilmempfehlungUser():
         
         
     def get_profilName(self, profil_id, soup):
-        tag = soup.find("div", {"class": "userbild"})
-        tag = tag.find("a")
-        self.profil_name = tag["title"]
+        tag = soup.find("div", {"class": "dername"})
+        tag = tag.find("h1", {"class": "hauptub"})
+        self.profil_name = tag.text
         return self.profil_name
     
     
@@ -99,4 +99,6 @@ class FilmempfehlungUser():
             print("Reached last profil page!")
         else:
             self.current_page_site = self.current_page_site + 1
-    
+
+
+FilmempfehlungUser(1750)    

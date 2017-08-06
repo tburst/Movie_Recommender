@@ -404,13 +404,14 @@ class Recommender:
             print("\n Movie already watched!")
     
     
-    def predictMovieRating_Search(self, single_movie_dict_testdata):
+    def predictMovieRating_Search(self, single_movie_dict_testdata,verbose=True):
         User_Movies = Database_Handler.Database_Movies(self.user_name)
         if not self.singleMovie_object.is_series:
             if self.singleMovie_object.rating >= 0 and self.singleMovie_object.rater >= 0:
                 new_movie_data_predictors = self.createSinglePredictors(single_movie_dict_testdata)
                 calculated_rating = self.ModelWithSimilar.predict(new_movie_data_predictors)
-                print("\nMovie:", "'" + self.singleMovie_object.title.strip() + "'", " calculated Rating: ",calculated_rating[0] )
+                if verbose:
+                    print("\nMovie:", "'" + self.singleMovie_object.title.strip() + "'", " calculated Rating: ",calculated_rating[0] )
                 if calculated_rating[0] >= 75:
                     User_Movies.store_Imdb_MainAttributes_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, self.singleMovie_object.rater, self.singleMovie_object.year, self.singleMovie_object.runtime, self.singleMovie_object.rating)
                     User_Movies.store_Imdb_Genres_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.genres)
@@ -419,7 +420,10 @@ class Recommender:
                     User_Movies.store_Imdb_Country_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.country)
                     User_Movies.store_Imdb_SimilarMovies_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.similars)
                     User_Movies.store_Imdb_Cast_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.cast)
-                    User_Movies.store_PotentialMovie_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, calculated_rating[0], self.user_name)
+                    if verbose:
+                        User_Movies.store_PotentialMovie_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, calculated_rating[0], self.user_name)
+                    else:
+                        User_Movies.store_PotentialMovie_InDatabase(self.singleMovie_object.imdb_id, self.singleMovie_object.title, calculated_rating[0], self.user_name,saving_message = False)
                 return calculated_rating[0]
         else:
             return -1

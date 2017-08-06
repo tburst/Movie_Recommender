@@ -8,6 +8,7 @@ Created on Fri Sep  9 15:32:37 2016
 
 import re
 import time
+import operator
 
 import Imdb_Scraper
 import Filmempfehlung_Scraper
@@ -72,7 +73,7 @@ while True:
     if user_main_decision == "recommend":
         user_recommender = Recommender_Engine.Recommender(user.profil_name)
         while True:
-            user_input = input("\nUse one of the following commands in the recommendation mode:\n'ask' -  ask for the estimated rating for a specific movie.\n'search' -  start a automatic search for potential new movies to watch.\n'update' - calculate new ratings for your already recommended and stored movies.\n'show' - shows the movies in your potential new movie table with the highest estimated rating\n'break' - quit the recommendation mode\nYour input: ")
+            user_input = input("\nUse one of the following commands in the recommendation mode:\n'ask' -  ask for the estimated rating for a specific movie.\n'search' -  start a automatic search for potential new movies to watch.\n'update' - calculate new ratings for your already recommended and stored movies.\n'show' - shows the movies in your potential new movie table with the highest estimated rating\n'group'- get movie recommendations for yourself and your partner\n'break' - quit the recommendation mode\nYour input: ")
             if user_input == "show":
                 show_input = input("Enter the number of movies you wish to see: " )
                 print("\nCurrently the", show_input, "movies with the highest estimated rating in your database for potential new movies are:...\n")                         
@@ -184,5 +185,62 @@ while True:
                     update_single_movie_dict = user_recommender.createSingleMovieTestData(single_movie_object)
                     user_recommender.update_potential_movie_rating(update_single_movie_dict,row[1])
                     time.sleep(5)
+            if user_input == "group":
+                userid_two = ""  
+                while userid_two != "break":  
+                    user_two_id = input("\nPlease insert the filmempfehlung.com id from your partner: ")
+                    user_two = Filmempfehlung_Scraper.FilmempfehlungUser(user_two_id)
+                    user_two_descision = input("Is '" + str(user_two.profil_name) + "' the right username? Write y/n: ")
+                    if user_two_descision == "y":
+                        break     
+                user_two_database = Database_Handler.Database_Movies(user_two.profil_name)
+                user_two_recommender = Recommender_Engine.Recommender(user_two.profil_name)
+                while True:
+                    group_option = input("\nUse one of the following commands in the group mode:\n'database' - search your stored potential movies for a suitable movie\n'custom' - insert own movie ids to get group ratings\n'break' - quit the group mode\nYour input: " )
+                    if group_option == "database":
+                        group_movie_dict = {}
+                        summed_rating_dict = {}
+                        user_one_potential_movies = user_database.get_PotentialMoviesToUpdate()
+                        user_one_potential_movies_ids = [movie[0] for movie in user_one_potential_movies]
+                        user_two_potential_movies = user_two_database.get_PotentialMoviesToUpdate()
+                        user_one_watched_movies = user_database.get_allRatedMoviesIdList()
+                        user_two_watched_movies = user_two_database.get_allRatedMoviesIdList()
+                        for movie in user_one_potential_movies:
+                            movie_id = movie[0]
+                            movie_personal_rating = movie[1]
+                            potential_movie = Imdb_Scraper.Database_Movie(movie_id)
+                            single_movie_dict = user_two_recommender.createSingleMovieTestData(potential_movie)
+                            if "Similar_Movie_Average" in single_movie_dict and movie_id not in user_two_watched_movies:
+                                movie_rating = user_two_recommender.predictMovieRating_Search(single_movie_dict,verbose=False)
+                                group_movie_dict[movie_id] = {"Title": potential_movie.title, "Rating_User1": movie[1], "Rating_User2": movie_rating, "Sum_Rating": movie[1] + movie_rating}
+                                summed_rating_dict[movie_id] =  movie[1] + movie_rating
+                        for movie in user_two_potential_movies:
+                            if movie[0] not in user_one_potential_movies_ids:
+                                movie_id = movie[0]
+                                movie_personal_rating = movie[1]
+                                potential_movie = Imdb_Scraper.Database_Movie(movie_id)
+                                single_movie_dict = user_recommender.createSingleMovieTestData(potential_movie)
+                                if "Similar_Movie_Average" in single_movie_dict and movie_id not in user_one_watched_movies:
+                                    movie_rating = user_recommender.predictMovieRating_Search(single_movie_dict,verbose=False)
+                                    group_movie_dict[movie_id] = {"Title": potential_movie.title, "Rating_User1": movie_rating, "Rating_User2": movie[1],"Sum_Rating": movie[1] + movie_rating}
+                                    summed_rating_dict[movie_id] =  movie[1] + movie_rating
+                        sorted_summed_rating_list = sorted(summed_rating_dict.items(), key=operator.itemgetter(1), reverse=True)
+                        print("\nHere are your recommended movies to watch together:\n")
+                        for movie in sorted_summed_rating_list:
+                            movie_id = movie[0]
+                            rating_user_one = group_movie_dict[movie_id]["Rating_User1"]
+                            rating_user_two = group_movie_dict[movie_id]["Rating_User2"]
+                            movie_title = group_movie_dict[movie_id]["Title"]
+                            if rating_user_one >= 75 and rating_user_two >= 75:
+                                print("\nMovie: {} ; Rating_{}: {:.2f} ; Rating_{}: {:.2f}".format(movie_title,user.profil_name,rating_user_one,user_two.profil_name,rating_user_two))
+                    if group_option == "break":
+                        break
             if user_input == "break":
                 break
+                            
+
+                        
+                        
+
+                     
+ 

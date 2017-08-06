@@ -244,6 +244,7 @@ class Database_Movie(Imdb_Movie):
     def __init__(self,imdb_id):
         self.imdb_id = imdb_id
         self.imdb_link = "http://www.imdb.com/title/tt" + str(self.imdb_id) + "/"
+        self.is_series = False
 
         self.get_rating()
         self.get_rater()
