@@ -14,6 +14,14 @@ import Filmempfehlung_Scraper
 import Database_Handler
 import Recommender_Engine
 
+import unittest
+
+import test_imdb
+
+
+
+suite = unittest.TestLoader().loadTestsFromModule(test_imdb)
+unittest.TextTestRunner(verbosity=0).run(suite)
 
 
 print("Hello! I'm your personal movie recommender. I can store your already rated movies in a database, you can ask me how you would like a specific movie and i can automatically search imdb for movies you should watch. Let's start!")

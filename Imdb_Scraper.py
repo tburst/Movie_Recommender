@@ -132,8 +132,15 @@ class Imdb_Movie():
     
     
     def get_country(self):
-        tags= str(self.soup("div", { "class" : "txt-block" }))
-        self.country= re.findall("countries.+itemprop=.url.>(.+)</a>", tags)
+        tags = self.soup.find_all("div", attrs= {"class": "txt-block"})
+        for tag in tags:
+           if tag.find("h4").text == "Country:":
+               tags = tag
+               break
+        tags = tags.find_all("a")
+        self.country = []
+        for tag in tags:
+            self.country.append(tag.text)
         return self.country
     
     
@@ -229,6 +236,8 @@ class Imdb_Movie():
 
 
 
+
+
 class Database_Movie(Imdb_Movie):
     
     
@@ -260,6 +269,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.rating = float(row[1])
         conn.close()
+        return self.rating
     
     
     def get_rater(self):
@@ -270,6 +280,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.rater = int(row[1])
         conn.close()
+        return self.rater
     
     
     def get_title(self):
@@ -280,6 +291,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.title = str(row[1])
         conn.close()
+        return self.title
     
     
     def get_year(self):
@@ -290,6 +302,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.year = int(row[1])
         conn.close()
+        return self.year
     
     
     def get_runtime(self):
@@ -300,6 +313,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.runtime = int(row[1])
         conn.close()
+        return self.runtime
     
     
     def get_genres(self):
@@ -311,6 +325,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.genres.append(row[1])
         conn.close()
+        return self.genres
     
     
     def get_writer(self):
@@ -322,6 +337,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.writer.append(row[1])
         conn.close()
+        return self.writer
     
     
     def get_director(self):
@@ -333,6 +349,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.director.append(row[1])
         conn.close()
+        return self.director
     
     
     def get_country(self):
@@ -344,6 +361,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.country.append(row[1])
         conn.close()
+        return self.country
     
     
     def get_similar(self):
@@ -355,6 +373,7 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.similars.append(row[1])
         conn.close()
+        return self.similars
     
     
     def get_cast(self):
@@ -366,16 +385,9 @@ class Database_Movie(Imdb_Movie):
         for row in cursor:
             self.cast.append(row[1])
         conn.close()
+        return self.cast
     
     
-    
-    
-    
-
-    
-                
-
-
 
 
 
